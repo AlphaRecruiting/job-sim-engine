@@ -1,0 +1,25 @@
+{
+  "name": "@job-sim/worker",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc",
+    "start:prod": "node dist/main.js",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@job-sim/shared": "workspace:*",
+    "@job-sim/simulation-modules": "workspace:*",
+    "@job-sim/scoring": "workspace:*",
+    "@prisma/client": "^5.22.0",
+    "bullmq": "^5.26.0",
+    "ioredis": "^5.4.1",
+    "openai": "^4.77.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

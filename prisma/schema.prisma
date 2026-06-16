@@ -1,0 +1,446 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                  User[]
+  candidates             Candidate[]
+  jobPostings            JobPosting[]
+  applications           Application[]
+  simulations            Simulation[]
+  simulationSteps        SimulationStep[]
+  scenarioAssets         ScenarioAsset[]
+  simulationVersions     SimulationVersion[]
+  simulationSessions     SimulationSession[]
+  stepSubmissions        StepSubmission[]
+  simulationEvents       SimulationEvent[]
+  candidateResults       CandidateResult[]
+  manualReviews          ManualReview[]
+  aiEvaluationTraces     AiEvaluationTrace[]
+  aiRecommendationRuns   AiRecommendationRun[]
+  realtimeCallSessions   RealtimeCallSession[]
+  realtimeCallEvents     RealtimeCallEvent[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  organizationId String
+  email          String   @unique
+  name           String?
+  role           String   // owner | admin | recruiter | hiring_manager | reviewer | viewer
+  passwordHash   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  createdJobPostings   JobPosting[]          @relation("CreatedByUser")
+  createdSimulations   Simulation[]          @relation("CreatedBySimulation")
+  createdVersions      SimulationVersion[]   @relation("CreatedByVersion")
+  manualReviews        ManualReview[]
+  aiRecommendationRuns AiRecommendationRun[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Candidate {
+  id             String   @id @default(uuid())
+  organizationId String
+  email          String
+  name           String?
+  phone          String?
+  externalRef    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  applications      Application[]
+  simulationSessions SimulationSession[]
+  stepSubmissions   StepSubmission[]
+  candidateResults  CandidateResult[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@map("candidates")
+}
+
+model JobPosting {
+  id                       String   @id @default(uuid())
+  organizationId           String
+  title                    String
+  description              String
+  department               String?
+  location                 String?
+  remotePolicy             String?
+  seniority                String?
+  employmentType           String?
+  status                   String   @default("draft") // draft | published | closed | archived
+  createdByUserId          String
+  activeSimulationId       String?
+  activeSimulationVersionId String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  createdByUser        User                  @relation("CreatedByUser", fields: [createdByUserId], references: [id])
+  applications         Application[]
+  simulations          Simulation[]
+  simulationSessions   SimulationSession[]
+  candidateResults     CandidateResult[]
+  aiRecommendationRuns AiRecommendationRun[]
+
+  @@index([organizationId])
+  @@map("job_postings")
+}
+
+model Application {
+  id             String    @id @default(uuid())
+  organizationId String
+  jobPostingId   String
+  candidateId    String
+  status         String    @default("invited") // invited | started | simulation_in_progress | simulation_completed | review_pending | shortlisted | rejected | hired
+  source         String?
+  invitedAt      DateTime?
+  appliedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization       Organization       @relation(fields: [organizationId], references: [id])
+  jobPosting         JobPosting         @relation(fields: [jobPostingId], references: [id])
+  candidate          Candidate          @relation(fields: [candidateId], references: [id])
+  simulationSessions SimulationSession[]
+  candidateResults   CandidateResult[]
+
+  @@index([organizationId])
+  @@index([jobPostingId])
+  @@index([candidateId])
+  @@map("applications")
+}
+
+model Simulation {
+  id                     String   @id @default(uuid())
+  organizationId         String
+  jobPostingId           String?
+  title                  String
+  description            String?
+  estimatedDurationMinutes Int?
+  status                 String   @default("draft") // draft | active | disabled | archived
+  createdByUserId        String
+  currentVersionId       String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  jobPosting   JobPosting?         @relation(fields: [jobPostingId], references: [id])
+  createdBy    User                @relation("CreatedBySimulation", fields: [createdByUserId], references: [id])
+  steps        SimulationStep[]
+  scenarioAssets ScenarioAsset[]
+  versions     SimulationVersion[]
+  sessions     SimulationSession[]
+
+  @@index([organizationId])
+  @@map("simulations")
+}
+
+model SimulationStep {
+  id             String   @id @default(uuid())
+  organizationId String
+  simulationId   String
+  orderIndex     Int
+  type           String   // multiple_choice | free_text | crm_prioritization | notification_reaction | email_response | simulated_call
+  title          String
+  instructions   String
+  timeLimitSeconds Int?
+  isRequired     Boolean  @default(true)
+  config         Json     // module-specific admin config (includes hidden data)
+  scoringConfig  Json?    // scoring weights and rubric
+  skillMapping   Json?    // Array<{ skill: string; weight: number }>
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  simulation   Simulation   @relation(fields: [simulationId], references: [id])
+
+  @@index([organizationId])
+  @@index([simulationId])
+  @@map("simulation_steps")
+}
+
+model ScenarioAsset {
+  id             String   @id @default(uuid())
+  organizationId String
+  simulationId   String
+  type           String   // crm_record | notification | email_thread | document | call_persona | objection | product_info | company_context
+  title          String
+  content        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  simulation   Simulation   @relation(fields: [simulationId], references: [id])
+
+  @@index([organizationId])
+  @@index([simulationId])
+  @@map("scenario_assets")
+}
+
+model SimulationVersion {
+  id              String   @id @default(uuid())
+  organizationId  String
+  simulationId    String
+  versionNumber   Int
+  snapshot        Json     // immutable: full simulation + steps + assets + scoring config + rubrics
+  createdByUserId String
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  organization     Organization       @relation(fields: [organizationId], references: [id])
+  simulation       Simulation         @relation(fields: [simulationId], references: [id])
+  createdBy        User               @relation("CreatedByVersion", fields: [createdByUserId], references: [id])
+  sessions         SimulationSession[]
+  stepSubmissions  StepSubmission[]
+  candidateResults CandidateResult[]
+
+  @@index([organizationId])
+  @@index([simulationId])
+  @@map("simulation_versions")
+}
+
+model SimulationSession {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  applicationId       String
+  candidateId         String
+  jobPostingId        String
+  simulationId        String
+  simulationVersionId String
+  status              String    @default("not_started") // not_started | in_progress | completed | expired | abandoned | disqualified
+  currentStepId       String?
+  sessionToken        String    @unique @default(uuid())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  expiresAt           DateTime?
+  metadata            Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  application        Application         @relation(fields: [applicationId], references: [id])
+  candidate          Candidate           @relation(fields: [candidateId], references: [id])
+  jobPosting         JobPosting          @relation(fields: [jobPostingId], references: [id])
+  simulation         Simulation          @relation(fields: [simulationId], references: [id])
+  simulationVersion  SimulationVersion   @relation(fields: [simulationVersionId], references: [id])
+  stepSubmissions    StepSubmission[]
+  simulationEvents   SimulationEvent[]
+  candidateResult    CandidateResult?
+  realtimeCallSessions RealtimeCallSession[]
+
+  @@index([organizationId])
+  @@index([applicationId])
+  @@index([candidateId])
+  @@map("simulation_sessions")
+}
+
+model StepSubmission {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  sessionId           String
+  candidateId         String
+  simulationVersionId String
+  stepId              String
+  stepType            String
+  status              String    @default("submitted") // submitted | skipped | auto_submitted | failed
+  startedAt           DateTime?
+  submittedAt         DateTime?
+  timeSpentSeconds    Int?
+  answer              Json      // module-specific answer
+  score               Json?     // StepScore JSON
+  scoringStatus       String    @default("pending") // pending | queued | processing | scored | failed | manual_review_required
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  session           SimulationSession @relation(fields: [sessionId], references: [id])
+  candidate         Candidate         @relation(fields: [candidateId], references: [id])
+  simulationVersion SimulationVersion @relation(fields: [simulationVersionId], references: [id])
+  manualReviews     ManualReview[]
+  realtimeCallSessions RealtimeCallSession[]
+
+  @@index([organizationId])
+  @@index([sessionId])
+  @@index([candidateId])
+  @@map("step_submissions")
+}
+
+model SimulationEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  sessionId      String
+  stepId         String?
+  eventType      String
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  session      SimulationSession @relation(fields: [sessionId], references: [id])
+
+  @@index([organizationId])
+  @@index([sessionId])
+  @@map("simulation_events")
+}
+
+model CandidateResult {
+  id                  String   @id @default(uuid())
+  organizationId      String
+  sessionId           String   @unique
+  applicationId       String
+  candidateId         String
+  jobPostingId        String
+  simulationVersionId String
+  totalScore          Float?
+  recommendation      String?  // strong_yes | yes | maybe | no | review_required
+  skillScores         Json?
+  strengths           Json?
+  weaknesses          Json?
+  redFlags            Json?
+  summary             String?
+  status              String   @default("pending") // pending | partial | complete
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  session           SimulationSession @relation(fields: [sessionId], references: [id])
+  application       Application       @relation(fields: [applicationId], references: [id])
+  candidate         Candidate         @relation(fields: [candidateId], references: [id])
+  jobPosting        JobPosting        @relation(fields: [jobPostingId], references: [id])
+  simulationVersion SimulationVersion @relation(fields: [simulationVersionId], references: [id])
+  manualReviews     ManualReview[]
+
+  @@index([organizationId])
+  @@index([jobPostingId])
+  @@index([candidateId])
+  @@map("candidate_results")
+}
+
+model ManualReview {
+  id              String   @id @default(uuid())
+  organizationId  String
+  sessionId       String
+  submissionId    String?
+  resultId        String?
+  reviewerUserId  String
+  score           Float?
+  decision        String?  // approve_score | override_score | request_second_review | reject_candidate | shortlist_candidate
+  notes           String?
+  overridePayload Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  reviewer     User            @relation(fields: [reviewerUserId], references: [id])
+  submission   StepSubmission? @relation(fields: [submissionId], references: [id])
+  result       CandidateResult? @relation(fields: [resultId], references: [id])
+
+  @@index([organizationId])
+  @@map("manual_reviews")
+}
+
+model AiEvaluationTrace {
+  id                String   @id @default(uuid())
+  organizationId    String
+  relatedEntityType String
+  relatedEntityId   String
+  model             String
+  promptVersion     String
+  inputHash         String
+  redactedInput     Json?
+  output            Json
+  latencyMs         Int?
+  costEstimate      Float?
+  createdAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([relatedEntityId])
+  @@map("ai_evaluation_traces")
+}
+
+model AiRecommendationRun {
+  id              String   @id @default(uuid())
+  organizationId  String
+  jobPostingId    String?
+  createdByUserId String
+  inputJobPost    Json
+  status          String   @default("queued") // queued | processing | completed | failed | accepted | partially_accepted | rejected
+  result          Json?
+  error           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  jobPosting   JobPosting?  @relation(fields: [jobPostingId], references: [id])
+  createdBy    User         @relation(fields: [createdByUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([jobPostingId])
+  @@map("ai_recommendation_runs")
+}
+
+model RealtimeCallSession {
+  id             String    @id @default(uuid())
+  organizationId String
+  sessionId      String
+  submissionId   String?
+  stepId         String
+  status         String    @default("created") // created | in_progress | completed | timeout | failed | abandoned
+  personaConfig  Json      // public persona info
+  hiddenObjections Json    // hidden objections - never sent to client
+  publicContext  Json      // public business context
+  startedAt      DateTime?
+  endedAt        DateTime?
+  durationSeconds Int?
+  transcript     Json?     // Array<{ speaker, text, timestampMs }>
+  callMetrics    Json?
+  outcome        Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  session      SimulationSession @relation(fields: [sessionId], references: [id])
+  submission   StepSubmission?   @relation(fields: [submissionId], references: [id])
+  events       RealtimeCallEvent[]
+
+  @@index([organizationId])
+  @@index([sessionId])
+  @@map("realtime_call_sessions")
+}
+
+model RealtimeCallEvent {
+  id                    String   @id @default(uuid())
+  organizationId        String
+  realtimeCallSessionId String
+  eventType             String
+  payload               Json?
+  createdAt             DateTime @default(now())
+
+  organization         Organization        @relation(fields: [organizationId], references: [id])
+  realtimeCallSession  RealtimeCallSession @relation(fields: [realtimeCallSessionId], references: [id])
+
+  @@index([organizationId])
+  @@index([realtimeCallSessionId])
+  @@map("realtime_call_events")
+}

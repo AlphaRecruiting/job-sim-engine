@@ -1,0 +1,17 @@
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm install -g pnpm", "pnpm install"]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @job-sim/shared build",
+  "pnpm --filter @job-sim/simulation-modules build",
+  "pnpm --filter @job-sim/scoring build",
+  "pnpm --filter @job-sim/api build",
+  "pnpm prisma generate"
+]
+
+[start]
+cmd = "pnpm prisma migrate deploy && node apps/api/dist/main.js"
