@@ -18,6 +18,7 @@ RUN pnpm --filter @job-sim/shared build
 RUN pnpm --filter @job-sim/simulation-modules build
 RUN pnpm --filter @job-sim/scoring build
 RUN pnpm --filter @job-sim/worker build
+RUN node_modules/.bin/prisma generate
 
 FROM base AS runner
 WORKDIR /app

@@ -19,6 +19,7 @@ RUN pnpm --filter @job-sim/shared build
 RUN pnpm --filter @job-sim/simulation-modules build
 RUN pnpm --filter @job-sim/scoring build
 RUN pnpm --filter @job-sim/api build
+RUN node_modules/.bin/prisma generate
 
 FROM base AS runner
 WORKDIR /app
@@ -31,4 +32,4 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./
 
 EXPOSE 4000
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node apps/api/dist/main.js"]
