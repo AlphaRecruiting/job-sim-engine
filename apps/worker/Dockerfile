@@ -3,7 +3,7 @@ RUN npm install -g pnpm
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc pnpm.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/simulation-modules/package.json ./packages/simulation-modules/
 COPY packages/scoring/package.json ./packages/scoring/
