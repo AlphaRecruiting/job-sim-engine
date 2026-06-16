@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { StepScore } from '@job-sim/shared';
+import { StepScore, SimulationStepType } from '@job-sim/shared';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -11,7 +11,7 @@ export interface AiRubricInput {
   redFlagDescriptions: string[];
   candidateAnswer: string;
   stepId: string;
-  stepType: string;
+  stepType: SimulationStepType;
 }
 
 const EVALUATOR_SYSTEM_PROMPT = `You are evaluating a candidate's work-simulation response for a hiring process.

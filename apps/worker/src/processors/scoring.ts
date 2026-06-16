@@ -2,7 +2,7 @@ import { Job } from 'bullmq';
 import { prisma } from '../lib/prisma';
 import { getModule } from '@job-sim/simulation-modules';
 import { scoreWithAiRubric, scoreCallTranscript, aggregateCandidateResult } from '@job-sim/scoring';
-import { SimulationVersionSnapshot, StepScore } from '@job-sim/shared';
+import { SimulationVersionSnapshot, StepScore, SimulationStepType } from '@job-sim/shared';
 
 export async function processScoringJob(job: Job) {
   const { submissionId, organizationId } = job.data;
@@ -72,7 +72,7 @@ export async function processScoringJob(job: Job) {
           redFlagDescriptions: config.redFlags ?? [],
           candidateAnswer: answerText,
           stepId: submission.stepId,
-          stepType: submission.stepType,
+          stepType: submission.stepType as SimulationStepType,
         });
         score = result.score;
         traceInput = result.traceInput;
