@@ -29,4 +29,4 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
 EXPOSE 3000
-CMD ["pnpm", "--filter", "@job-sim/web", "start"]
+CMD ["sh", "-c", "cd /app/apps/web && /app/node_modules/.bin/next start -p 3000"]
