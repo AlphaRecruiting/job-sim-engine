@@ -110,8 +110,13 @@ router.get('/sessions/:sessionToken/steps/:stepId', async (req, res) => {
   const existingSubmission = await prisma.stepSubmission.findFirst({ where: { sessionId: session.id, stepId: step.id } });
   const autosave = await prisma.simulationEvent.findFirst({ where: { sessionId: session.id, stepId: step.id, eventType: 'autosave' }, orderBy: { createdAt: 'desc' } });
 
+  const stepIndex = (snapshot?.steps.findIndex(s => s.id === req.params.stepId) ?? 0) + 1;
+  const totalSteps = snapshot?.steps.length ?? 1;
+
   res.json({
     step: { id: step.id, orderIndex: step.orderIndex, type: step.type, title: step.title, instructions: step.instructions, timeLimitSeconds: step.timeLimitSeconds, isRequired: step.isRequired, publicConfig: mod.getPublicCandidateConfig(step.config) },
+    stepIndex,
+    totalSteps,
     submission: existingSubmission ? { status: existingSubmission.status, submittedAt: existingSubmission.submittedAt } : null,
     autosavedAnswer: (autosave?.payload as any)?.answer ?? null,
   });
@@ -198,6 +203,46 @@ router.post('/sessions/:sessionToken/complete', async (req, res) => {
     update: { status: 'pending' },
   });
 
+  res.json({ success: true });
+});
+
+// Candidate history: all sessions for this candidate
+router.get('/sessions/:sessionToken/history', async (req, res) => {
+  const session = await prisma.simulationSession.findFirst({ where: { sessionToken: req.params.sessionToken } });
+  if (!session) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const [candidate, allSessions] = await Promise.all([
+    prisma.candidate.findUnique({ where: { id: session.candidateId } }),
+    prisma.simulationSession.findMany({
+      where: { candidateId: session.candidateId, organizationId: session.organizationId },
+      include: { jobPosting: { select: { title: true, department: true } }, candidateResult: { select: { totalScore: true, recommendation: true } } },
+      orderBy: { startedAt: 'desc' },
+    }),
+  ]);
+
+  res.json({
+    candidate: { name: candidate?.name, email: candidate?.email, phone: candidate?.phone },
+    sessions: allSessions.map(s => ({
+      sessionToken: s.sessionToken,
+      jobTitle: s.jobPosting?.title ?? 'Unknown Role',
+      department: s.jobPosting?.department,
+      status: s.status,
+      startedAt: s.startedAt,
+      completedAt: s.completedAt,
+      totalScore: s.candidateResult?.totalScore ?? null,
+      recommendation: s.candidateResult?.recommendation ?? null,
+      isCurrent: s.sessionToken === req.params.sessionToken,
+    })),
+  });
+});
+
+// Update candidate profile from apply page
+router.patch('/application/:token/profile', async (req, res) => {
+  const application = await prisma.application.findUnique({ where: { id: req.params.token } });
+  if (!application) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const { name, phone } = req.body;
+  await prisma.candidate.update({ where: { id: application.candidateId }, data: { ...(name ? { name } : {}), ...(phone ? { phone } : {}) } });
   res.json({ success: true });
 });
 

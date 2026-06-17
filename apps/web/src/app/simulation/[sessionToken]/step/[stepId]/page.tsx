@@ -3,7 +3,13 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
-type StepData = { step: { id: string; type: string; title: string; instructions: string; timeLimitSeconds?: number; publicConfig: any }; submission?: { status: string } | null; autosavedAnswer?: any };
+type StepData = {
+  step: { id: string; type: string; title: string; instructions: string; timeLimitSeconds?: number; publicConfig: any };
+  stepIndex: number;
+  totalSteps: number;
+  submission?: { status: string } | null;
+  autosavedAnswer?: any;
+};
 
 export default function StepPage() {
   const { sessionToken, stepId } = useParams<{ sessionToken: string; stepId: string }>();
@@ -13,18 +19,23 @@ export default function StepPage() {
   const [answer, setAnswer] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // timeLeft is kept for internal auto-submit only — not displayed
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     api.get<StepData>(`/api/candidate/sessions/${sessionToken}/steps/${stepId}`)
-      .then(d => { setData(d); if (d.autosavedAnswer) setAnswer(d.autosavedAnswer); if (d.step.timeLimitSeconds) setTimeLeft(d.step.timeLimitSeconds); })
+      .then(d => {
+        setData(d);
+        if (d.autosavedAnswer) setAnswer(d.autosavedAnswer);
+        if (d.step.timeLimitSeconds) setTimeLeft(d.step.timeLimitSeconds);
+      })
       .catch(e => setError(e.message)).finally(() => setLoading(false));
 
     api.post(`/api/candidate/sessions/${sessionToken}/steps/${stepId}/events`, { eventType: 'step_started' }).catch(() => {});
   }, [sessionToken, stepId]);
 
-  // Timer
+  // Internal timer — auto-submits when time is up, not shown to candidate
   useEffect(() => {
     if (timeLeft === null) return;
     if (timeLeft <= 0) { handleSubmit(); return; }
@@ -32,7 +43,6 @@ export default function StepPage() {
     return () => clearTimeout(t);
   }, [timeLeft]);
 
-  // Autosave
   useEffect(() => {
     autosaveRef.current = setInterval(() => {
       if (answer) api.post(`/api/candidate/sessions/${sessionToken}/steps/${stepId}/autosave`, { answer }).catch(() => {});
@@ -58,47 +68,80 @@ export default function StepPage() {
     api.post(`/api/candidate/sessions/${sessionToken}/steps/${stepId}/events`, { eventType, payload }).catch(() => {});
   }, [sessionToken, stepId]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">Caricamento...</div>;
   if (error) return <div className="min-h-screen flex items-center justify-center text-red-600">{error}</div>;
   if (!data) return null;
 
-  const { step } = data;
+  const { step, stepIndex, totalSteps } = data;
   const alreadySubmitted = data.submission?.status === 'submitted';
+  const progress = totalSteps > 0 ? (stepIndex / totalSteps) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="font-semibold">{step.title}</h1>
-          <p className="text-xs text-gray-400 capitalize">{step.type.replace(/_/g, ' ')}</p>
-        </div>
-        {timeLeft !== null && (
-          <div className={`text-sm font-mono font-bold px-3 py-1.5 rounded-lg ${timeLeft < 60 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-700'}`}>
-            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+      {/* Header with progress */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="px-6 py-3 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="font-semibold text-gray-900 text-sm truncate">{step.title}</h1>
+            <p className="text-xs text-gray-400 capitalize">{step.type.replace(/_/g, ' ')}</p>
           </div>
-        )}
+          {/* Step counter */}
+          <div className="flex-shrink-0 text-right">
+            <span className="text-sm font-bold text-gray-700">{stepIndex}</span>
+            <span className="text-sm text-gray-400">/{totalSteps}</span>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="h-1 bg-gray-100">
+          <div
+            className="h-1 bg-blue-500 transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        {/* Step dots */}
+        <div className="px-6 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <div
+              key={i}
+              className={`flex-shrink-0 rounded-full transition-all duration-300 ${
+                i < stepIndex - 1 ? 'w-2 h-2 bg-blue-500' :
+                i === stepIndex - 1 ? 'w-3 h-3 bg-blue-600 ring-2 ring-blue-200' :
+                'w-2 h-2 bg-gray-200'
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto p-6 space-y-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-sm text-blue-800">{step.instructions}</p>
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <p className="text-sm text-blue-800 leading-relaxed">{step.instructions}</p>
         </div>
 
         {alreadySubmitted ? (
           <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-            <p className="font-semibold text-green-700">Step submitted</p>
+            <p className="font-semibold text-green-700">Step completato</p>
           </div>
         ) : (
           <>
             <StepRenderer type={step.type} config={step.publicConfig} answer={answer} onAnswerChange={setAnswer} onTrackEvent={trackEvent} />
 
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</p>}
 
-            <div className="flex justify-end">
-              <button onClick={handleSubmit} disabled={submitting || (!answer && step.type !== 'welcome')}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 transition">
-                {submitting ? 'Submitting...' : step.type === 'welcome' ? 'Continue →' : 'Submit Step →'}
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs text-gray-400">Step {stepIndex} di {totalSteps}</span>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting || (!answer && step.type !== 'welcome')}
+                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-40 transition flex items-center gap-2 text-sm"
+              >
+                {submitting ? (
+                  <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Invio...</>
+                ) : step.type === 'welcome' ? (
+                  <>Continua <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></>
+                ) : (
+                  <>Avanti {stepIndex < totalSteps ? `(${stepIndex + 1}/${totalSteps})` : '— Completa'} <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></>
+                )}
               </button>
             </div>
           </>
