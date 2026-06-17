@@ -430,6 +430,24 @@ model RealtimeCallSession {
   @@map("realtime_call_sessions")
 }
 
+model CandidateProfile {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  phone        String?
+  bio          String?
+  location     String?
+  linkedinUrl  String?
+  avatarData   String?  // base64 data URI or external URL
+  cvData       String?  // base64-encoded PDF
+  cvFilename   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("candidate_profiles")
+}
+
 model RealtimeCallEvent {
   id                    String   @id @default(uuid())
   organizationId        String

@@ -8,6 +8,7 @@ import jobsRouter from './routes/jobs';
 import simulationsRouter from './routes/simulations';
 import aiRecommendationsRouter from './routes/ai-recommendations';
 import candidateRouter from './routes/candidate';
+import candidateAuthRouter from './routes/candidate-auth';
 import realtimeCallsRouter from './routes/realtime-calls';
 import resultsRouter from './routes/results';
 
@@ -20,6 +21,7 @@ app.use(express.json({ limit: '10mb' }));
 app.get('/health', (_, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
 app.use('/api', authRouter);
+app.use('/api/candidate/auth', candidateAuthRouter);
 app.use('/api/public', publicRouter);
 app.use('/api/candidate', candidateRouter);   // must come before /api catch-all mounts
 app.use('/api/jobs', jobsRouter);
