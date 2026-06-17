@@ -23,7 +23,7 @@ export const StepScoreSchema = z.object({
     message: z.string(),
   })),
   summary: z.string(),
-  scoringMode: z.enum(['deterministic', 'ai_rubric', 'hybrid', 'manual']),
+  scoringMode: z.enum(['deterministic', 'ai_rubric', 'hybrid', 'manual', 'algorithmic']),
   confidence: z.number().min(0).max(1),
   needsManualReview: z.boolean(),
 });

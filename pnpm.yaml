@@ -4,3 +4,4 @@ onlyBuiltDependencies:
   - esbuild
   - msgpackr-extract
   - prisma
+  - puppeteer

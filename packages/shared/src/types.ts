@@ -76,7 +76,7 @@ export interface StepScore {
     message: string;
   }>;
   summary: string;
-  scoringMode: 'deterministic' | 'ai_rubric' | 'hybrid' | 'manual';
+  scoringMode: 'deterministic' | 'ai_rubric' | 'hybrid' | 'manual' | 'algorithmic';
   confidence: number;
   needsManualReview: boolean;
 }

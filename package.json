@@ -18,7 +18,8 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "puppeteer": "^25.1.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
@@ -96,9 +96,9 @@ export default function StepPage() {
             {error && <p className="text-red-600 text-sm">{error}</p>}
 
             <div className="flex justify-end">
-              <button onClick={handleSubmit} disabled={submitting || !answer}
+              <button onClick={handleSubmit} disabled={submitting || (!answer && step.type !== 'welcome')}
                 className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 transition">
-                {submitting ? 'Submitting...' : 'Submit Step →'}
+                {submitting ? 'Submitting...' : step.type === 'welcome' ? 'Continue →' : 'Submit Step →'}
               </button>
             </div>
           </>
@@ -118,6 +118,7 @@ function StepRenderer({ type, config, answer, onAnswerChange, onTrackEvent }: { 
     case 'crm_prioritization': return <CrmPrioritizationRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />;
     case 'notification_reaction': return <NotificationReactionRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'simulated_call': return <SimulatedCallRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />;
+    case 'welcome': return <WelcomeRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     default: return <div className="text-gray-500">Unknown step type: {type}</div>;
   }
 }
@@ -264,6 +265,69 @@ function NotificationReactionRenderer({ config, answer, onChange }: any) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+function WelcomeRenderer({ config, answer, onChange }: any) {
+  const startTime = useMemo(() => Date.now(), []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const spent = Math.round((Date.now() - startTime) / 1000);
+      onChange({ acknowledged: true, timeSpentSeconds: spent });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [startTime, onChange]);
+
+  const spent = answer?.timeSpentSeconds ?? 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Founder message card */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+            {config.founderName?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) ?? 'F'}
+          </div>
+          <div>
+            <p className="font-semibold text-sm">{config.founderName}</p>
+            {config.founderRole && <p className="text-xs text-gray-500">{config.founderRole}</p>}
+          </div>
+        </div>
+        {config.videoUrl ? (
+          <div className="rounded-xl overflow-hidden bg-black aspect-video">
+            <video src={config.videoUrl} controls className="w-full h-full" />
+          </div>
+        ) : null}
+        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{config.founderMessage}</p>
+      </div>
+
+      {/* Slack message */}
+      {config.slackMessage && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-5 h-5 flex items-center justify-center">
+              <svg viewBox="0 0 54 54" className="w-5 h-5"><path d="M19.712.133a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386h5.376V5.52A5.381 5.381 0 0 0 19.712.133m0 14.365H5.376A5.381 5.381 0 0 0 0 19.884a5.381 5.381 0 0 0 5.376 5.387h14.336a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386" fill="#36C5F0"/><path d="M53.76 19.884a5.381 5.381 0 0 0-5.376-5.386 5.381 5.381 0 0 0-5.376 5.386v5.387h5.376a5.381 5.381 0 0 0 5.376-5.387m-14.336 0V5.52A5.381 5.381 0 0 0 34.048.133a5.381 5.381 0 0 0-5.376 5.387v14.364a5.381 5.381 0 0 0 5.376 5.387 5.381 5.381 0 0 0 5.376-5.387" fill="#2EB67D"/><path d="M34.048 54a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386h-5.376v5.386A5.381 5.381 0 0 0 34.048 54m0-14.365h14.336a5.381 5.381 0 0 0 5.376-5.386 5.381 5.381 0 0 0-5.376-5.387H34.048a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386" fill="#ECB22E"/><path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/></svg>
+            </div>
+            <span className="text-xs font-semibold text-[#1D1C1D]"># general</span>
+          </div>
+          <div className="flex gap-2">
+            <div className="w-8 h-8 rounded bg-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+              {config.slackMessage.sender?.[0] ?? 'M'}
+            </div>
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-bold text-[#1D1C1D]">{config.slackMessage.sender}</span>
+                {config.slackMessage.role && <span className="text-xs text-gray-400">{config.slackMessage.role}</span>}
+              </div>
+              <p className="text-sm text-[#1D1C1D] mt-0.5">{config.slackMessage.message}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {spent > 0 && <p className="text-xs text-gray-400 text-right">Reading time: {spent}s</p>}
     </div>
   );
 }

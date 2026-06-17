@@ -5,6 +5,7 @@ export * from './crm-prioritization';
 export * from './notification-reaction';
 export * from './email-response';
 export * from './simulated-call';
+export * from './welcome';
 
 import { multipleChoiceModule } from './multiple-choice';
 import { freeTextModule } from './free-text';
@@ -12,6 +13,7 @@ import { crmPrioritizationModule } from './crm-prioritization';
 import { notificationReactionModule } from './notification-reaction';
 import { emailResponseModule } from './email-response';
 import { simulatedCallModule } from './simulated-call';
+import { welcomeModule } from './welcome';
 import { SimulationModule } from './types';
 
 export const moduleRegistry: Record<string, SimulationModule<any, any>> = {
@@ -21,6 +23,7 @@ export const moduleRegistry: Record<string, SimulationModule<any, any>> = {
   notification_reaction: notificationReactionModule,
   email_response: emailResponseModule,
   simulated_call: simulatedCallModule,
+  welcome: welcomeModule,
 };
 
 export function getModule(type: string): SimulationModule<any, any> {

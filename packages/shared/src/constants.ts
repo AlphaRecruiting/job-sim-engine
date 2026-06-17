@@ -5,6 +5,7 @@ export const STEP_TYPES = [
   'notification_reaction',
   'email_response',
   'simulated_call',
+  'welcome',
 ] as const;
 
 export const USER_ROLES = ['owner', 'admin', 'recruiter', 'hiring_manager', 'reviewer', 'viewer'] as const;
