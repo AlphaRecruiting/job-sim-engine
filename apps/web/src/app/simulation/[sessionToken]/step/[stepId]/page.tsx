@@ -186,45 +186,139 @@ function EmailResponseRenderer({ config, answer, onChange }: any) {
 
 function CrmPrioritizationRenderer({ config, answer, onChange, onTrackEvent }: any) {
   const ordered: string[] = answer?.orderedRecordIds ?? config.records?.map((r: any) => r.id) ?? [];
-  function move(id: string, dir: number) {
-    const idx = ordered.indexOf(id);
-    if (idx < 0) return;
-    const newArr = [...ordered];
-    const target = idx + dir;
-    if (target < 0 || target >= newArr.length) return;
-    [newArr[idx], newArr[target]] = [newArr[target], newArr[idx]];
-    onChange({ ...answer, orderedRecordIds: newArr });
-    onTrackEvent('item_reordered', { id, from: idx, to: target });
-  }
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
   const recordMap = new Map((config.records ?? []).map((r: any) => [r.id, r]));
+
+  function reorder(fromIdx: number, toIdx: number) {
+    if (fromIdx === toIdx) return;
+    const newArr = [...ordered];
+    const [item] = newArr.splice(fromIdx, 1);
+    newArr.splice(toIdx, 0, item);
+    onChange({ orderedRecordIds: newArr, explanation: answer?.explanation ?? '' });
+    onTrackEvent('item_reordered', { id: ordered[fromIdx], from: fromIdx, to: toIdx });
+  }
+
+  function onDragStart(e: React.DragEvent, idx: number) {
+    dragIdxRef.current = idx;
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onDragOver(e: React.DragEvent, idx: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIdx(idx);
+  }
+
+  function onDrop(e: React.DragEvent, idx: number) {
+    e.preventDefault();
+    if (dragIdxRef.current !== null) reorder(dragIdxRef.current, idx);
+    dragIdxRef.current = null;
+    setDragOverIdx(null);
+  }
+
+  function onDragEnd() {
+    dragIdxRef.current = null;
+    setDragOverIdx(null);
+  }
+
+  const priorityColors = [
+    'bg-emerald-500',
+    'bg-blue-500',
+    'bg-blue-400',
+    'bg-slate-400',
+    'bg-slate-300',
+    'bg-slate-300',
+    'bg-slate-300',
+    'bg-slate-300',
+  ];
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <p className="text-sm text-gray-600">{config.scenarioContext}</p>
-      <p className="font-medium text-sm">{config.taskPrompt}</p>
+    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <div className="space-y-1">
+        <p className="text-sm text-gray-700 leading-relaxed">{config.scenarioContext}</p>
+        <p className="font-semibold text-sm text-gray-900 mt-2">{config.taskPrompt}</p>
+      </div>
+
+      <p className="text-xs text-gray-400 flex items-center gap-1.5">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7-7 7 7"/></svg>
+        Drag to reorder by priority
+      </p>
+
       <div className="space-y-2">
         {ordered.map((id, i) => {
           const rec = recordMap.get(id) as any;
           if (!rec) return null;
+          const isDragOver = dragOverIdx === i;
+          const isDragging = dragIdxRef.current === i;
           return (
-            <div key={id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 bg-gray-50">
-              <div className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</div>
-              <div className="flex-1">
-                <div className="text-sm font-medium">{rec.displayName}</div>
-                <div className="text-xs text-gray-500">{rec.company} · {rec.stage} {rec.value ? `· $${rec.value.toLocaleString()}` : ''}</div>
-                {rec.visibleSignals?.length > 0 && <div className="text-xs text-gray-400 mt-0.5">{rec.visibleSignals.join(' · ')}</div>}
+            <div
+              key={id}
+              draggable
+              onDragStart={e => onDragStart(e, i)}
+              onDragOver={e => onDragOver(e, i)}
+              onDrop={e => onDrop(e, i)}
+              onDragEnd={onDragEnd}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-150 cursor-grab active:cursor-grabbing select-none
+                ${isDragOver
+                  ? 'border-blue-400 bg-blue-50 shadow-md scale-[1.01]'
+                  : isDragging
+                  ? 'border-dashed border-gray-300 bg-gray-50 opacity-40'
+                  : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                }`}
+            >
+              {/* Drag handle */}
+              <div className="flex flex-col gap-[3px] px-1 flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors">
+                {[0,1,2].map(row => (
+                  <div key={row} className="flex gap-[3px]">
+                    <div className="w-[3px] h-[3px] rounded-full bg-current" />
+                    <div className="w-[3px] h-[3px] rounded-full bg-current" />
+                  </div>
+                ))}
               </div>
-              <div className="flex flex-col gap-0.5">
-                <button onClick={() => move(id, -1)} disabled={i === 0} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs">▲</button>
-                <button onClick={() => move(id, 1)} disabled={i === ordered.length - 1} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs">▼</button>
+
+              {/* Rank badge */}
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${priorityColors[i] ?? 'bg-slate-300'}`}>
+                {i + 1}
               </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-gray-900 truncate">{rec.displayName}</div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {rec.company}
+                  {rec.stage ? <span className="ml-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-medium">{rec.stage}</span> : null}
+                </div>
+                {rec.visibleSignals?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {rec.visibleSignals.map((s: string, si: number) => (
+                      <span key={si} className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100">{s}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Value badge */}
+              {rec.value ? (
+                <div className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-lg flex-shrink-0">
+                  €{(rec.value / 1000).toFixed(0)}k
+                </div>
+              ) : null}
             </div>
           );
         })}
       </div>
+
       {config.requiredExplanation && (
-        <div>
-          <label className="text-sm font-medium block mb-1">Explain your ranking</label>
-          <textarea className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm min-h-[100px]" placeholder="Why did you prioritize these accounts in this order?" value={answer?.explanation ?? ''} onChange={e => onChange({ orderedRecordIds: ordered, ...answer, explanation: e.target.value })} />
+        <div className="space-y-1.5">
+          <label className="text-sm font-semibold text-gray-900 block">Explain your ranking</label>
+          <textarea
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm min-h-[110px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition"
+            placeholder="Why did you prioritize these leads in this order? What signals influenced your decision?"
+            value={answer?.explanation ?? ''}
+            onChange={e => onChange({ orderedRecordIds: ordered, ...answer, explanation: e.target.value })}
+          />
         </div>
       )}
     </div>
