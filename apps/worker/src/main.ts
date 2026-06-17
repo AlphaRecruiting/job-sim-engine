@@ -4,7 +4,8 @@ import { processScoringJob } from './processors/scoring';
 import { processAiRecommendationJob } from './processors/ai-recommendations';
 import { processAnalyticsJob } from './processors/analytics';
 
-const connection = { host: (redis.options as any).host || 'localhost', port: (redis.options as any).port || 6379 };
+const { host = 'localhost', port = 6379, password, username } = redis.options as any;
+const connection = { host, port, password, username };
 
 const scoringWorker = new Worker('scoring', processScoringJob, {
   connection,
