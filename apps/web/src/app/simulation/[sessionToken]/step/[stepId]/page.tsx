@@ -426,84 +426,225 @@ function WelcomeRenderer({ config, answer, onChange }: any) {
   );
 }
 
+type ChatMsg = { role: 'candidate' | 'ai_buyer'; text: string; ts: number };
+
 function SimulatedCallRenderer({ config, answer, onChange, onTrackEvent }: any) {
+  const { sessionToken, stepId } = useParams<{ sessionToken: string; stepId: string }>();
   const [callState, setCallState] = useState<'pre' | 'active' | 'ended'>('pre');
-  const [micOk, setMicOk] = useState<boolean | null>(null);
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState('');
+  const [aiTyping, setAiTyping] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  async function checkMic() {
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, aiTyping]);
+
+  function buildOpenAiHistory(msgs: ChatMsg[]) {
+    return msgs.map(m => ({
+      role: m.role === 'candidate' ? 'user' as const : 'assistant' as const,
+      content: m.text,
+    }));
+  }
+
+  function updateAnswer(msgs: ChatMsg[], durationSeconds: number) {
+    onChange({
+      callSessionId: 'chat-' + (answer?.callSessionId?.split('-')[1] ?? Date.now()),
+      transcript: msgs.map(m => ({ speaker: m.role, text: m.text, timestampMs: m.ts })),
+      outcome: { selectedOutcome: 'no_next_step', aiBuyerInterestFinal: 50, aiBuyerTrustFinal: 40, aiBuyerUrgencyFinal: 30, nextStepAgreed: false },
+      metrics: { durationSeconds },
+    });
+  }
+
+  async function fetchAiReply(history: ChatMsg[]) {
+    setAiTyping(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop());
-      setMicOk(true);
-    } catch { setMicOk(false); }
+      const res = await api.post<{ message: string }>(
+        `/api/candidate/sessions/${sessionToken}/steps/${stepId}/call-chat`,
+        { messages: buildOpenAiHistory(history) }
+      );
+      const aiMsg: ChatMsg = { role: 'ai_buyer', text: res.message, ts: Date.now() };
+      const updated = [...history, aiMsg];
+      setMessages(updated);
+      updateAnswer(updated, elapsed);
+      return aiMsg;
+    } catch {
+      const fallback: ChatMsg = { role: 'ai_buyer', text: 'Scusa, hai detto qualcosa?', ts: Date.now() };
+      const updated = [...history, fallback];
+      setMessages(updated);
+      updateAnswer(updated, elapsed);
+    } finally {
+      setAiTyping(false);
+    }
   }
 
   async function startCall() {
     setCallState('active');
     timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
     onTrackEvent('call_started');
-    // In production: connect to realtime API using the token from /realtime-call/start
-    onChange({ callSessionId: 'demo-' + Date.now(), transcript: [], outcome: { selectedOutcome: 'no_next_step', aiBuyerInterestFinal: 50, aiBuyerTrustFinal: 40, aiBuyerUrgencyFinal: 30, nextStepAgreed: false }, metrics: { durationSeconds: 0 } });
+    const callId = 'chat-' + Date.now();
+    onChange({ callSessionId: callId, transcript: [], outcome: { selectedOutcome: 'no_next_step', aiBuyerInterestFinal: 50, aiBuyerTrustFinal: 40, aiBuyerUrgencyFinal: 30, nextStepAgreed: false }, metrics: { durationSeconds: 0 } });
+    // Get AI's opening line
+    await fetchAiReply([]);
+    inputRef.current?.focus();
+  }
+
+  async function sendMessage() {
+    const text = input.trim();
+    if (!text || aiTyping) return;
+    setInput('');
+    const userMsg: ChatMsg = { role: 'candidate', text, ts: Date.now() };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    updateAnswer(updated, elapsed);
+    await fetchAiReply(updated);
+    inputRef.current?.focus();
   }
 
   function endCall() {
     if (timerRef.current) clearInterval(timerRef.current);
     setCallState('ended');
     onTrackEvent('call_ended');
-    onChange((prev: any) => ({ ...prev, metrics: { durationSeconds: elapsed } }));
+    updateAnswer(messages, elapsed);
   }
 
+  const persona = config.aiPersona;
+  const initials = persona?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) ?? 'AI';
   const maxDuration = config.maxDurationSeconds ?? 720;
 
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-      <div className="bg-gray-50 rounded-xl p-4">
-        <h3 className="font-semibold text-sm mb-2">Scenario Brief</h3>
-        <p className="text-sm text-gray-700">{config.publicCandidateBrief}</p>
-      </div>
-      <div className="text-sm text-gray-600">
-        <span className="font-medium">You are speaking with: </span>{config.aiPersona?.name}, {config.aiPersona?.role}{config.aiPersona?.company ? ` at ${config.aiPersona.company}` : ''}
-      </div>
-      <div className="text-sm text-gray-500">Estimated duration: {Math.round((config.estimatedDurationSeconds ?? 600) / 60)} minutes</div>
-
-      {callState === 'pre' && (
-        <div className="space-y-3">
-          <button onClick={checkMic} className="border border-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition">
-            {micOk === null ? '🎤 Test Microphone' : micOk ? '✅ Microphone Ready' : '❌ Microphone Access Denied'}
-          </button>
-          {micOk === false && <p className="text-red-600 text-sm">Please allow microphone access in your browser settings.</p>}
-          <button onClick={startCall} className="block w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition">
-            Start Call
+  // Pre-call screen
+  if (callState === 'pre') {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white text-center space-y-3">
+          <div className="w-16 h-16 rounded-full bg-indigo-500 flex items-center justify-center text-2xl font-bold mx-auto">
+            {initials}
+          </div>
+          <div>
+            <p className="font-semibold text-lg">{persona?.name}</p>
+            <p className="text-slate-300 text-sm">{persona?.role}{persona?.company ? ` · ${persona.company}` : ''}</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Scenario Brief</p>
+            <p className="text-sm text-amber-900 leading-relaxed">{config.publicCandidateBrief}</p>
+          </div>
+          <p className="text-xs text-gray-400 text-center">Questa è una simulazione testuale. Scrivi come parleresti davvero in una chiamata reale.</p>
+          <button onClick={startCall} className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 active:scale-[0.98] transition flex items-center justify-center gap-2">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+            Inizia la chiamata
           </button>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {callState === 'active' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-green-700 font-medium text-sm">Call in progress</span>
+  // Post-call screen
+  if (callState === 'ended') {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-slate-800 px-6 py-4 flex items-center gap-3 text-white">
+          <div className="w-9 h-9 rounded-full bg-slate-600 flex items-center justify-center text-sm font-bold">{initials}</div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">{persona?.name}</p>
+            <p className="text-xs text-slate-400">Chiamata terminata · {Math.floor(elapsed / 60)}m {elapsed % 60}s</p>
+          </div>
+        </div>
+        <div className="p-4 max-h-64 overflow-y-auto space-y-3 bg-slate-50">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'candidate' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${m.role === 'candidate' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'}`}>
+                {m.text}
+              </div>
             </div>
-            <div className="font-mono text-sm font-bold">
-              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} / {Math.floor(maxDuration / 60)}:00
+          ))}
+        </div>
+        <div className="p-4 bg-green-50 border-t border-green-200">
+          <p className="text-sm font-semibold text-green-700 text-center">Chiamata completata — clicca "Submit Step →" per procedere</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Active call — chat interface
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style={{ height: '520px' }}>
+      {/* Header */}
+      <div className="bg-slate-800 px-4 py-3 flex items-center gap-3 text-white flex-shrink-0">
+        <div className="relative">
+          <div className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold">{initials}</div>
+          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-slate-800" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm leading-tight">{persona?.name}</p>
+          <p className="text-xs text-slate-400 truncate">{persona?.role}{persona?.company ? ` · ${persona.company}` : ''}</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs font-mono text-slate-300 bg-slate-700 px-2.5 py-1 rounded-full">
+          <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />
+          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+        {messages.length === 0 && !aiTyping && (
+          <div className="flex items-center justify-center h-full text-slate-400 text-sm">Connessione in corso...</div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} className={`flex items-end gap-2 ${m.role === 'candidate' ? 'flex-row-reverse' : 'flex-row'}`}>
+            {m.role === 'ai_buyer' && (
+              <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mb-0.5">{initials}</div>
+            )}
+            <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${m.role === 'candidate' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
+              {m.text}
             </div>
           </div>
-          <p className="text-xs text-gray-500 text-center">The AI buyer is live. Conduct your discovery call.</p>
-          <button onClick={endCall} className="w-full border-2 border-red-400 text-red-600 py-3 rounded-xl font-semibold hover:bg-red-50 transition">
-            End Call
+        ))}
+        {aiTyping && (
+          <div className="flex items-end gap-2">
+            <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">{initials}</div>
+            <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+              <div className="flex gap-1 items-center h-4">
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input area */}
+      <div className="flex-shrink-0 border-t border-gray-200 bg-white p-3 space-y-2">
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={inputRef}
+            rows={2}
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Scrivi la tua risposta... (Invio per inviare)"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            disabled={aiTyping}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!input.trim() || aiTyping}
+            className="h-[60px] px-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40 transition flex items-center justify-center"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>
-      )}
-
-      {callState === 'ended' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-          <p className="font-semibold text-blue-700">Call ended</p>
-          <p className="text-sm text-blue-600 mt-1">Duration: {Math.floor(elapsed / 60)}m {elapsed % 60}s. Click Submit to finalize.</p>
-        </div>
-      )}
+        <button onClick={endCall} className="w-full py-2 rounded-xl text-sm font-semibold border-2 border-red-300 text-red-600 hover:bg-red-50 transition flex items-center justify-center gap-2">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+          Termina chiamata
+        </button>
+      </div>
     </div>
   );
 }

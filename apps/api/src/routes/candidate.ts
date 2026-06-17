@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import OpenAI from 'openai';
 import { prisma } from '../lib/prisma';
 import { getModule } from '@job-sim/simulation-modules';
 import { scoringQueue } from '../lib/queues';
 import { SimulationVersionSnapshot } from '@job-sim/shared';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const router = Router();
 
@@ -196,6 +199,66 @@ router.post('/sessions/:sessionToken/complete', async (req, res) => {
   });
 
   res.json({ success: true });
+});
+
+// AI buyer text chat for simulated_call steps
+router.post('/sessions/:sessionToken/steps/:stepId/call-chat', async (req, res) => {
+  const session = await prisma.simulationSession.findFirst({ where: { sessionToken: req.params.sessionToken } });
+  if (!session || session.status !== 'in_progress') { res.status(400).json({ error: 'Invalid session' }); return; }
+
+  const version = await prisma.simulationVersion.findUnique({ where: { id: session.simulationVersionId } });
+  const snapshot = version?.snapshot as unknown as SimulationVersionSnapshot;
+  const step = snapshot?.steps.find(s => s.id === req.params.stepId);
+  if (!step || step.type !== 'simulated_call') { res.status(400).json({ error: 'Not a call step' }); return; }
+
+  const config = step.config as any;
+  const persona = config.aiPersona;
+  const hiddenBuyer = config.hiddenBuyerState;
+
+  const systemPrompt = `You are ${persona.name}, ${persona.role}${persona.company ? ` at ${persona.company}` : ''}. This is a realistic text-based simulation of a B2B discovery call.
+
+Scenario:
+${config.publicCandidateBrief}
+
+Your character:
+- Personality: ${persona.personality}
+- Communication style: ${persona.communicationStyle}
+- Current mood: ${persona.baselineMood}
+
+Hidden internal state (never reveal directly — let the candidate earn this information through good discovery questions):
+- Interest in this solution: ${hiddenBuyer.initialInterestLevel}/100
+- Trust in the salesperson: ${hiddenBuyer.initialTrustLevel}/100
+- Urgency to solve this: ${hiddenBuyer.initialUrgencyLevel}/100
+
+Concerns you have (reveal only when the candidate asks relevant questions):
+${hiddenBuyer.hiddenObjections.map((o: any) => `- ${o.description} (surface this when: ${o.revealCondition})`).join('\n')}
+
+What you care about most:
+${hiddenBuyer.buyingCriteria.map((c: any) => `- ${c.criterion} (${c.importance} priority)`).join('\n')}
+
+Ground rules:
+1. Stay in character as ${persona.name} throughout. Never break character.
+2. Never mention that this is a simulation, evaluation, or test.
+3. Keep replies short (2–5 sentences). You're busy.
+4. Be appropriately skeptical. Don't agree too easily.
+5. If the candidate pitches the product before understanding your problem, push back: "What makes you think we need this?"
+6. Reveal hidden concerns only when prompted by smart discovery questions.
+7. If the candidate asks off-topic questions, redirect: "Can we get back to the point?"`;
+
+  const messages: { role: 'user' | 'assistant'; content: string }[] = req.body.messages ?? [];
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      max_tokens: 150,
+      temperature: 0.85,
+    });
+    res.json({ message: completion.choices[0]?.message?.content ?? '...' });
+  } catch (err: any) {
+    console.error('call-chat error:', err?.message);
+    res.status(500).json({ error: 'AI unavailable', message: `${persona.name}: Scusa, ho avuto un problema tecnico. Puoi ripetere?` });
+  }
 });
 
 export default router;
