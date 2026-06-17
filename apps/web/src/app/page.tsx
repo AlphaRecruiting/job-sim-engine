@@ -12,7 +12,7 @@ export default function LandingPage() {
           <span className="font-semibold text-slate-900 text-lg">JobSim</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/login/applicant" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors px-4 py-2">
+          <Link href="/jobs" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors px-4 py-2">
             I&apos;m a candidate
           </Link>
           <Link href="/login/company" className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors">
@@ -36,8 +36,8 @@ export default function LandingPage() {
           <Link href="/login/company" className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-base hover:bg-indigo-700 transition-colors shadow-sm">
             Get started — it&apos;s free
           </Link>
-          <Link href="/login/applicant" className="text-slate-700 px-8 py-4 rounded-xl font-semibold text-base hover:bg-slate-100 transition-colors border border-slate-200">
-            Access my simulation
+          <Link href="/jobs" className="text-slate-700 px-8 py-4 rounded-xl font-semibold text-base hover:bg-slate-100 transition-colors border border-slate-200">
+            Browse open jobs
           </Link>
         </div>
       </section>

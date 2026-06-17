@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 
 import authRouter from './routes/auth';
+import publicRouter from './routes/public';
 import jobsRouter from './routes/jobs';
 import simulationsRouter from './routes/simulations';
 import aiRecommendationsRouter from './routes/ai-recommendations';
@@ -19,6 +20,7 @@ app.use(express.json({ limit: '10mb' }));
 app.get('/health', (_, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
 app.use('/api', authRouter);
+app.use('/api/public', publicRouter);
 app.use('/api/jobs', jobsRouter);
 app.use('/api/simulations', simulationsRouter);
 app.use('/api', simulationsRouter); // for /api/jobs/:jobId/simulation routes

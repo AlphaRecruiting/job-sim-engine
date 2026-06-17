@@ -53,11 +53,27 @@ export default function ApplicantLoginPage() {
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-            <div className="mb-8">
+            <div className="mb-6">
               <h1 className="text-2xl font-bold text-slate-900 mb-2">Access your simulation</h1>
               <p className="text-slate-500 text-sm leading-relaxed">
                 Paste the invite link or token from the email you received.
               </p>
+            </div>
+
+            <Link
+              href="/jobs"
+              className="flex items-center justify-between w-full bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl px-4 py-3.5 mb-6 hover:bg-indigo-100 transition-colors group"
+            >
+              <div>
+                <p className="font-semibold text-sm">Browse open positions</p>
+                <p className="text-xs text-indigo-500 mt-0.5">Find and apply to a role directly</p>
+              </div>
+              <span className="text-indigo-400 group-hover:translate-x-0.5 transition-transform">→</span>
+            </Link>
+
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+              <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-slate-400">or use an invite link</span></div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
