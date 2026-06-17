@@ -1,0 +1,106 @@
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+
+export default function ApplicantLoginPage() {
+  const router = useRouter();
+  const [token, setToken] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function extractToken(raw: string): string {
+    // Accept a full URL like https://.../apply/abc123 or just the token
+    try {
+      const url = new URL(raw.trim());
+      const parts = url.pathname.split('/');
+      const applyIdx = parts.indexOf('apply');
+      if (applyIdx !== -1 && parts[applyIdx + 1]) return parts[applyIdx + 1];
+    } catch {
+      // not a URL — use as-is
+    }
+    return raw.trim();
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    const tok = extractToken(token);
+    if (!tok) { setError('Please enter your invite token or link.'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/candidate/application/${tok}`);
+      if (!res.ok) { setError('Invalid or expired invite link. Check the email you received.'); return; }
+      router.push(`/apply/${tok}`);
+    } catch {
+      setError('Network error — please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <nav className="px-8 py-5">
+        <Link href="/" className="flex items-center gap-2 w-fit">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <span className="text-white text-sm font-bold">JS</span>
+          </div>
+          <span className="font-semibold text-slate-900">JobSim</span>
+        </Link>
+      </nav>
+
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold text-slate-900 mb-2">Access your simulation</h1>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Paste the invite link or token from the email you received.
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Invite link or token</label>
+                <input
+                  type="text"
+                  value={token}
+                  onChange={e => setToken(e.target.value)}
+                  placeholder="https://… or paste your token"
+                  required
+                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-indigo-600 text-white font-semibold py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {loading ? 'Checking…' : 'Go to my simulation'}
+              </button>
+            </form>
+
+            <div className="mt-6 bg-slate-50 rounded-lg p-4 text-xs text-slate-500 leading-relaxed">
+              <strong className="text-slate-700">Didn&apos;t receive an invite?</strong> Contact the company that sent you the application. Invite links are unique to each candidate.
+            </div>
+
+            <p className="text-center text-xs text-slate-400 mt-6">
+              Are you hiring?{' '}
+              <Link href="/login/company" className="text-indigo-600 hover:underline font-medium">
+                Company login
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
