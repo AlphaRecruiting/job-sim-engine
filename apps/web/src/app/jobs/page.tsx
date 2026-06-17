@@ -41,8 +41,8 @@ export default function JobsBoardPage() {
           </div>
           <span className="font-semibold text-slate-900">JobSim</span>
         </Link>
-        <Link href="/login/company" className="text-sm text-slate-500 hover:text-slate-900 transition-colors">
-          Accesso aziende →
+        <Link href="/employer" className="text-sm text-slate-500 hover:text-slate-900 transition-colors">
+          Per le aziende →
         </Link>
       </nav>
 
