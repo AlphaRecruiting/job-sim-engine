@@ -15,6 +15,8 @@ RUN pnpm install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+ARG RAILWAY_GIT_COMMIT_SHA
+RUN echo "commit=${RAILWAY_GIT_COMMIT_SHA}"
 COPY . .
 RUN pnpm --filter @job-sim/shared build
 RUN pnpm --filter @job-sim/web build
