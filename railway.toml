@@ -1,6 +1,3 @@
 [build]
 builder = "nixpacks"
 buildCommand = "pnpm --filter @job-sim/shared build && pnpm --filter @job-sim/web build"
-
-[deploy]
-startCommand = "pnpm --filter @job-sim/web start"
