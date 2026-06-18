@@ -1,12 +1,18 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
+import https from 'https';
 import { prisma } from '../lib/prisma';
 import { scoringQueue } from '../lib/queues';
 import { getModule } from '@job-sim/simulation-modules';
 import { SimulationVersionSnapshot } from '@job-sim/shared';
 
 const router = Router();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 2,
+  timeout: 25000,
+  httpAgent: new https.Agent({ keepAlive: true }),
+});
 
 // Start realtime call (candidate-facing)
 router.post('/candidate/sessions/:sessionToken/steps/:stepId/realtime-call/start', async (req, res) => {

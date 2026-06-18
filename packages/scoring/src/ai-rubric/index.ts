@@ -1,7 +1,13 @@
 import OpenAI from 'openai';
+import https from 'https';
 import { StepScore, SimulationStepType } from '@job-sim/shared';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 2,
+  timeout: 25000,
+  httpAgent: new https.Agent({ keepAlive: true }),
+});
 
 export interface AiRubricInput {
   roleContext: string;

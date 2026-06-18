@@ -1,9 +1,15 @@
 import { Job } from 'bullmq';
 import OpenAI from 'openai';
+import https from 'https';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 2,
+  timeout: 25000,
+  httpAgent: new https.Agent({ keepAlive: true }),
+});
 
 const MODULE_TYPES = [
   { type: 'multiple_choice', description: 'Knowledge check or scenario decision with predefined options. Deterministic scoring.' },
