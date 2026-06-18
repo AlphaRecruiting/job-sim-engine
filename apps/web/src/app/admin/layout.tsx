@@ -2,14 +2,13 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Briefcase, BarChart2, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { Briefcase, Settings, LogOut } from 'lucide-react';
 import { getUser, clearToken } from '@/lib/auth';
 import { Avatar } from '@/components/ui';
 
 const navItems = [
-  { href: '/admin/jobs',      label: 'Offerte',        Icon: Briefcase },
-  { href: '/admin/analytics', label: 'Analisi',        Icon: BarChart2 },
-  { href: '/admin/settings',  label: 'Impostazioni',   Icon: Settings  },
+  { href: '/admin/jobs',     label: 'Offerte',       Icon: Briefcase },
+  { href: '/admin/settings', label: 'Impostazioni',  Icon: Settings  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
