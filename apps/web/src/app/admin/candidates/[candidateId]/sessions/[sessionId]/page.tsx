@@ -9,7 +9,54 @@ type Result = {
   events: Array<{ id: string; eventType: string; stepId?: string; createdAt: string }>;
 };
 
+const STEP_LABELS: Record<string, string> = {
+  multiple_choice:       'Scelta multipla',
+  free_text:             'Testo libero',
+  crm_prioritization:    'Prioritizzazione CRM',
+  notification_reaction: 'Reazione notifiche',
+  email_response:        'Risposta email',
+  simulated_call:        'Chiamata simulata',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  completed: 'Completato',
+  pending:   'In attesa',
+  started:   'Avviato',
+  skipped:   'Saltato',
+  timeout:   'Scaduto',
+};
+
+const SCORING_LABELS: Record<string, string> = {
+  scored:  'Valutato',
+  pending: 'In corso',
+  failed:  'Errore',
+  skipped: 'Saltato',
+};
+
+const REC_LABELS: Record<string, string> = {
+  strong_yes:      'Altamente idoneo',
+  yes:             'Idoneo',
+  maybe:           'Da valutare',
+  no:              'Non idoneo',
+  review_required: 'Richiede revisione',
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  session_started:    'Sessione avviata',
+  session_completed:  'Sessione completata',
+  step_started:       'Step avviato',
+  step_completed:     'Step completato',
+  step_skipped:       'Step saltato',
+  step_timeout:       'Step scaduto',
+  scoring_started:    'Valutazione avviata',
+  scoring_completed:  'Valutazione completata',
+};
+
 const recColor: Record<string, string> = { strong_yes: 'text-green-700', yes: 'text-blue-700', maybe: 'text-yellow-700', no: 'text-red-700', review_required: 'text-orange-700' };
+
+function labelFor(map: Record<string, string>, key: string): string {
+  return map[key] ?? key.replace(/_/g, ' ');
+}
 
 export default function CandidateDetailPage() {
   const { sessionId } = useParams<{ candidateId: string; sessionId: string }>();
@@ -36,7 +83,7 @@ export default function CandidateDetailPage() {
           <div className="text-sm text-gray-500 mt-1">Punteggio totale</div>
         </div>
         <div className="border-l border-gray-200 pl-8">
-          <div className={`text-xl font-bold ${recColor[result.recommendation ?? ''] ?? 'text-gray-700'}`}>{result.recommendation?.replace(/_/g, ' ').toUpperCase() ?? '—'}</div>
+          <div className={`text-xl font-bold ${recColor[result.recommendation ?? ''] ?? 'text-gray-700'}`}>{result.recommendation ? labelFor(REC_LABELS, result.recommendation) : '—'}</div>
           <div className="text-sm text-gray-500 mt-1">Raccomandazione</div>
           {result.summary && <p className="text-sm text-gray-600 mt-3">{result.summary}</p>}
         </div>
@@ -77,12 +124,12 @@ export default function CandidateDetailPage() {
             <div key={sub.id} className="px-5 py-4">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium mr-2">{sub.stepType}</span>
-                  <span className="text-sm font-medium">{sub.status}</span>
+                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium mr-2">{labelFor(STEP_LABELS, sub.stepType)}</span>
+                  <span className="text-sm font-medium">{labelFor(STATUS_LABELS, sub.status)}</span>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold">{sub.score?.totalScore != null ? `${sub.score.totalScore}%` : '—'}</div>
-                  <div className="text-xs text-gray-400">{sub.scoringStatus}</div>
+                  <div className="text-xs text-gray-400">{labelFor(SCORING_LABELS, sub.scoringStatus)}</div>
                 </div>
               </div>
               {sub.score?.summary && <p className="text-sm text-gray-600 mt-1">{sub.score.summary}</p>}
@@ -122,7 +169,7 @@ export default function CandidateDetailPage() {
           {events.map(evt => (
             <div key={evt.id} className="flex items-center gap-3 text-xs text-gray-600">
               <span className="text-gray-400 w-40 shrink-0">{new Date(evt.createdAt).toLocaleTimeString()}</span>
-              <span className="font-mono">{evt.eventType}</span>
+              <span>{labelFor(EVENT_LABELS, evt.eventType)}</span>
               {evt.stepId && <span className="text-gray-400">step:{evt.stepId.slice(-6)}</span>}
             </div>
           ))}

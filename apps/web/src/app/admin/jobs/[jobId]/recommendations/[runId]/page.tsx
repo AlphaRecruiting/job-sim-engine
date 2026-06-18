@@ -5,6 +5,15 @@ import { api } from '@/lib/api';
 
 type Run = { id: string; status: string; result?: { roleProfile?: any; extractedSkills?: any[]; recommendedSteps?: any[]; risksAndBiasNotes?: string[] }};
 
+const STEP_LABELS: Record<string, string> = {
+  multiple_choice:       'Scelta multipla',
+  free_text:             'Testo libero',
+  crm_prioritization:    'Prioritizzazione CRM',
+  notification_reaction: 'Reazione notifiche',
+  email_response:        'Risposta email',
+  simulated_call:        'Chiamata simulata',
+};
+
 export default function RecommendationsPage() {
   const { jobId, runId } = useParams<{ jobId: string; runId: string }>();
   const router = useRouter();
@@ -74,7 +83,7 @@ export default function RecommendationsPage() {
               <div className="flex items-center gap-3">
                 <input type="checkbox" checked={selected.has(step.id)} onChange={() => {}} className="mt-0.5" />
                 <div>
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">{step.type}</span>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">{STEP_LABELS[step.type] ?? step.type.replace(/_/g, ' ')}</span>
                   <h3 className="font-semibold mt-1">{step.title}</h3>
                 </div>
               </div>

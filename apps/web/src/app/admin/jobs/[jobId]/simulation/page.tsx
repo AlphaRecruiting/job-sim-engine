@@ -137,7 +137,7 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-2xl space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium">{step.type}</span>
+        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium">{MODULE_LABELS[step.type] ?? step.type.replace(/_/g, ' ')}</span>
         <h3 className="font-semibold">Modifica step</h3>
       </div>
       <div>
