@@ -1,7 +1,10 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Search, Zap, Briefcase, ClipboardCheck, Award, Sparkles, ArrowRight, Bookmark } from 'lucide-react';
+import TopNav from '@/components/TopNav';
+import Footer from '@/components/Footer';
+import { Button, Tag, Card, Avatar, Badge } from '@/components/ui';
 
 type Job = {
   id: string;
@@ -13,219 +16,244 @@ type Job = {
   seniority?: string;
   employmentType?: string;
   activeSimulationVersionId?: string;
-  createdAt: string;
   organization: { name: string };
 };
 
-export default function HomePage() {
-  const router = useRouter();
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterDept, setFilterDept] = useState('');
-  const [filterRemote, setFilterRemote] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
+const REMOTE_LABELS: Record<string, string> = {
+  remote: 'Remoto', hybrid: 'Ibrido', onsite: 'In sede',
+};
 
-  useEffect(() => {
-    fetch('/api/public/jobs')
-      .then(r => r.json())
-      .then(data => { setJobs(Array.isArray(data) ? data : []); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+const EMPLOYMENT_LABELS: Record<string, string> = {
+  full_time: 'Full-time', part_time: 'Part-time', contract: 'Contratto', internship: 'Stage',
+};
 
-  const departments = [...new Set(jobs.map(j => j.department).filter(Boolean))] as string[];
-  const remotePolicies = [...new Set(jobs.map(j => j.remotePolicy).filter(Boolean))] as string[];
-
-  const filtered = jobs.filter(j => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || j.title.toLowerCase().includes(q) || j.organization.name.toLowerCase().includes(q) || j.department?.toLowerCase().includes(q);
-    const matchDept = !filterDept || j.department === filterDept;
-    const matchRemote = !filterRemote || j.remotePolicy === filterRemote;
-    return matchSearch && matchDept && matchRemote;
-  });
+function JobCard({ job }: { job: Job }) {
+  const company = job.organization.name;
+  const tags = [
+    job.department,
+    job.seniority,
+    job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : undefined,
+  ].filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Nav */}
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-2 shrink-0 mr-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white text-sm font-bold">JS</span>
+    <Link href={`/jobs/${job.id}`} className="block group">
+      <Card padding="md" interactive>
+        <div className="flex gap-3 items-start">
+          <Avatar name={company} square size="lg" />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-[17px] font-bold text-ink-950 group-hover:text-brand transition-colors leading-snug">
+              {job.title}
+            </h3>
+            <div className="text-[14px] text-ink-500 mt-0.5 truncate">
+              {company}
+              {job.location ? ` · ${job.location}` : ''}
+              {job.remotePolicy ? ` · ${REMOTE_LABELS[job.remotePolicy] ?? job.remotePolicy}` : ''}
+            </div>
           </div>
-          <span className="font-bold text-slate-900 text-lg hidden sm:block">JobSim</span>
-        </Link>
-
-        {/* Search bar in nav */}
-        <div className="flex-1 max-w-xl relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input
-            ref={searchRef}
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Ruolo, azienda o dipartimento…"
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto shrink-0">
-          <Link href="/candidate/login" className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors px-3 py-2 hidden sm:block">
-            Accedi
-          </Link>
-          <Link href="/employer" className="text-sm text-slate-500 hover:text-slate-900 transition-colors px-3 py-2 hidden sm:block">
-            Per le aziende
-          </Link>
-        </div>
-      </nav>
-
-      {/* Hero banner — compact */}
-      <div className="bg-white border-b border-slate-100 px-6 py-10 text-center">
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3">
-          Trova il lavoro giusto.<br className="hidden sm:block" /> Dimostra le tue competenze.
-        </h1>
-        <p className="text-slate-500 text-base max-w-lg mx-auto">
-          Ogni offerta include una simulazione lavorativa reale. Niente lettere di presentazione — mostri cosa sai fare, non solo chi sei.
-        </p>
-      </div>
-
-      {/* Filters + count bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-3 flex-wrap">
-        <span className="text-sm text-slate-500 mr-auto">
-          {loading ? 'Caricamento…' : `${filtered.length} offert${filtered.length === 1 ? 'a' : 'e'}`}
-        </span>
-
-        {departments.length > 0 && (
-          <select
-            value={filterDept}
-            onChange={e => setFilterDept(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-          >
-            <option value="">Tutti i dipartimenti</option>
-            {departments.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        )}
-
-        {remotePolicies.length > 0 && (
-          <select
-            value={filterRemote}
-            onChange={e => setFilterRemote(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-          >
-            <option value="">Tutte le modalità</option>
-            {remotePolicies.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        )}
-
-        {(filterDept || filterRemote || search) && (
           <button
-            onClick={() => { setSearch(''); setFilterDept(''); setFilterRemote(''); }}
-            className="text-xs text-slate-400 hover:text-slate-700 transition"
+            type="button"
+            className="text-ink-300 hover:text-ink-500 transition-colors flex-none mt-0.5"
+            onClick={e => e.preventDefault()}
           >
-            Cancella filtri ×
+            <Bookmark size={18} />
           </button>
-        )}
-      </div>
+        </div>
 
-      {/* Job listings */}
-      <div className="flex-1 max-w-4xl mx-auto w-full px-6 py-8">
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-6 animate-pulse">
-                <div className="h-5 bg-slate-200 rounded w-56 mb-3" />
-                <div className="h-3 bg-slate-100 rounded w-32 mb-4" />
-                <div className="h-3 bg-slate-100 rounded w-full mb-2" />
-                <div className="h-3 bg-slate-100 rounded w-4/5" />
-              </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-24">
-            <div className="text-4xl mb-4">🔍</div>
-            <p className="text-slate-500 text-lg font-medium mb-1">
-              {jobs.length === 0 ? 'Nessuna posizione aperta al momento' : 'Nessuna offerta corrisponde alla ricerca'}
-            </p>
-            <p className="text-slate-400 text-sm">
-              {jobs.length === 0 ? 'Torna a controllare presto.' : 'Prova con parole chiave diverse o rimuovi i filtri.'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map(job => (
-              <Link
-                key={job.id}
-                href={`/jobs/${job.id}`}
-                className="block bg-white rounded-2xl border border-slate-200 p-6 hover:border-indigo-300 hover:shadow-md transition-all group"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <h2 className="font-semibold text-slate-900 text-base group-hover:text-indigo-600 transition-colors">{job.title}</h2>
-                      {job.activeSimulationVersionId && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 font-medium px-2 py-0.5 rounded-full border border-indigo-100">
-                          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                          Simulazione inclusa
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-500 mb-3">{job.organization.name}</p>
-                    <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">{job.description}</p>
-                  </div>
-                  <svg className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {job.department && <Tag>{job.department}</Tag>}
-                  {job.seniority && <Tag>{job.seniority}</Tag>}
-                  {job.employmentType && <Tag>{EMPLOYMENT_LABELS[job.employmentType] ?? job.employmentType}</Tag>}
-                  {job.location && <Tag>📍 {job.location}</Tag>}
-                  {job.remotePolicy && <Tag>{REMOTE_LABELS[job.remotePolicy] ?? job.remotePolicy}</Tag>}
-                </div>
-              </Link>
-            ))}
+        {tags.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap mt-3">
+            {tags.map(t => <Tag key={t}>{t}</Tag>)}
           </div>
         )}
-      </div>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-100 py-6 px-8 flex items-center justify-between text-xs text-slate-400 mt-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-indigo-600 rounded flex items-center justify-center">
-            <span className="text-white text-xs font-bold">JS</span>
+        {job.activeSimulationVersionId && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-brand-subtle rounded-md mt-3">
+            <Zap size={14} className="text-blue-600 flex-none" />
+            <span className="text-[13px] text-blue-700 font-semibold">Simulazione lavorativa inclusa</span>
           </div>
-          <span className="font-medium">JobSim</span>
+        )}
+
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-ink-100">
+          <p className="text-[13px] text-ink-500 line-clamp-1 flex-1 mr-3">
+            {job.description.slice(0, 72)}…
+          </p>
+          <ArrowRight size={14} className="text-ink-300 group-hover:text-brand transition-colors flex-none" />
         </div>
-        <div className="flex items-center gap-5">
-          <Link href="/employer" className="hover:text-slate-600 transition-colors">Per le aziende</Link>
-          <Link href="/candidate/login" className="hover:text-slate-600 transition-colors">Accedi</Link>
-          <span>© {new Date().getFullYear()} JobSim</span>
-        </div>
-      </footer>
+      </Card>
+    </Link>
+  );
+}
+
+function HowStep({
+  n,
+  Icon,
+  title,
+  text,
+}: {
+  n: number;
+  Icon: React.ElementType;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="w-12 h-12 rounded-lg bg-ink-950 flex items-center justify-center flex-none">
+        <Icon size={22} className="text-white" />
+      </div>
+      <div className="font-mono text-[12px] text-brand font-semibold">0{n}</div>
+      <h3 className="text-[20px] font-bold text-ink-950">{title}</h3>
+      <p className="text-[15px] text-ink-600 leading-relaxed">{text}</p>
     </div>
   );
 }
 
-const EMPLOYMENT_LABELS: Record<string, string> = {
-  full_time: 'Full-time',
-  part_time: 'Part-time',
-  contract: 'Contratto',
-  internship: 'Stage',
-};
+export default function HomePage() {
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
-const REMOTE_LABELS: Record<string, string> = {
-  remote: '🌐 Remoto',
-  hybrid: '🏠 Ibrido',
-  onsite: '🏢 In sede',
-};
+  useEffect(() => {
+    fetch('/api/public/jobs')
+      .then(r => r.json())
+      .then(data => setJobs(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-function Tag({ children }: { children: React.ReactNode }) {
+  const filtered = jobs.filter(j => {
+    const q = search.toLowerCase();
+    return (
+      !q ||
+      j.title.toLowerCase().includes(q) ||
+      j.organization.name.toLowerCase().includes(q) ||
+      j.department?.toLowerCase().includes(q)
+    );
+  });
+
   return (
-    <span className="inline-flex items-center bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1 rounded-full">
-      {children}
-    </span>
+    <div className="min-h-screen flex flex-col bg-ink-50">
+      <TopNav />
+
+      {/* Hero */}
+      <section className="bg-white border-b border-ink-200">
+        <div className="max-w-container mx-auto px-6 py-16">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-subtle rounded-full mb-6">
+            <Sparkles size={14} className="text-blue-600" />
+            <span className="text-[13px] font-semibold text-blue-700">
+              Candidature basate sulle prove, non solo sui CV
+            </span>
+          </div>
+          <h1 className="text-6xl max-w-[820px] mb-5">
+            Prova il lavoro,<br />poi candidati.
+          </h1>
+          <p className="text-[20px] text-ink-600 leading-relaxed max-w-[600px] mb-8">
+            Su Mansio completi le task reali del ruolo e dimostri cosa sai fare. Le aziende ti scelgono per
+            le tue competenze, non per le parole nel curriculum.
+          </p>
+          <div className="flex gap-2.5 max-w-[720px] flex-wrap items-start">
+            <div className="flex-[2_1_260px] relative">
+              <Search
+                size={17}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none"
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Ruolo, competenza o azienda"
+                className="w-full pl-10 pr-4 py-2.5 border border-ink-200 rounded-lg text-[14px] text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-brand transition bg-white h-12"
+              />
+            </div>
+            <Button size="lg" iconRight={<ArrowRight size={16} />}>Cerca</Button>
+          </div>
+          <div className="flex gap-2 mt-4 items-center flex-wrap">
+            <span className="text-[13px] text-ink-500">Popolari:</span>
+            {['Product Designer', 'Frontend', 'Data Analyst', 'Remoto'].map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setSearch(t)}
+                className="text-[13px] font-medium px-2.5 py-1 rounded-md bg-ink-100 text-ink-600 hover:bg-ink-200 transition-colors"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Jobs */}
+      <section className="max-w-container mx-auto px-6 py-14 w-full">
+        <div className="flex items-end justify-between mb-6">
+          <div>
+            <h2 className="text-[30px]">Offerte con simulazione</h2>
+            <p className="text-[16px] text-ink-500 mt-1.5">
+              {loading
+                ? 'Caricamento…'
+                : `${filtered.length} posizion${filtered.length === 1 ? 'e' : 'i'} · ognuna con task reali da completare`}
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white rounded-xl border border-ink-200 p-5 animate-pulse">
+                <div className="h-5 bg-ink-100 rounded w-40 mb-3" />
+                <div className="h-3 bg-ink-100 rounded w-24 mb-4" />
+                <div className="h-3 bg-ink-100 rounded w-full mb-2" />
+                <div className="h-3 bg-ink-100 rounded w-3/4" />
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-ink-500 text-[17px] font-semibold mb-1">
+              {jobs.length === 0
+                ? 'Nessuna posizione aperta al momento'
+                : 'Nessuna offerta corrisponde alla ricerca'}
+            </p>
+            <p className="text-ink-400 text-[14px]">
+              {jobs.length === 0 ? 'Torna a controllare presto.' : 'Prova con parole chiave diverse.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map(job => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Come funziona */}
+      <section id="come-funziona" className="max-w-container mx-auto px-6 pt-6 pb-20 w-full">
+        <h2 className="text-[30px] mb-2">Come funziona</h2>
+        <p className="text-[16px] text-ink-500 mb-9 max-w-[560px]">
+          Tre passi per trasformare la tua candidatura in una prova concreta.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-10">
+          <HowStep
+            n={1}
+            Icon={Briefcase}
+            title="Scegli un'offerta"
+            text="Trovi posizioni reali con una simulazione collegata: vedi subito le task che dovrai affrontare."
+          />
+          <HowStep
+            n={2}
+            Icon={ClipboardCheck}
+            title="Completa la simulazione"
+            text="Affronti le stesse task del ruolo, nei tuoi tempi. Niente domande trabocchetto, solo lavoro vero."
+          />
+          <HowStep
+            n={3}
+            Icon={Award}
+            title="Ricevi un feedback"
+            text="L'azienda valuta il tuo lavoro e ti dà un riscontro. Le candidature migliori passano avanti."
+          />
+        </div>
+      </section>
+
+      <Footer />
+    </div>
   );
 }
