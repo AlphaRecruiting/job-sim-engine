@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Camera, FileText, Linkedin, MapPin, Phone, Upload, ArrowRight, CheckCircle,
+  Camera, FileText, Link2, MapPin, Phone, Upload, ArrowRight, CheckCircle,
 } from 'lucide-react';
 import TopNav from '@/components/TopNav';
 import Footer from '@/components/Footer';
@@ -190,7 +190,7 @@ export default function CandidateProfilePage() {
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 text-[13px] text-blue-600 hover:underline"
                       >
-                        <Linkedin size={13} /> LinkedIn
+                        <Link2 size={13} /> LinkedIn
                       </a>
                     )}
                     {profile.hasCv && <Badge tone="success" dot>CV caricato</Badge>}
@@ -235,7 +235,7 @@ export default function CandidateProfilePage() {
                   placeholder="linkedin.com/in/mario-rossi"
                   value={profile.linkedinUrl ?? ''}
                   onChange={e => set('linkedinUrl', e.target.value)}
-                  prefix={<Linkedin size={15} />}
+                  prefix={<Link2 size={15} />}
                 />
               </div>
 
