@@ -1,11 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 
 type Profile = { id: string; email: string; name?: string };
 
-export default function CandidateLoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') ?? '/candidate/profile';
@@ -96,5 +96,13 @@ export default function CandidateLoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function CandidateLoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
