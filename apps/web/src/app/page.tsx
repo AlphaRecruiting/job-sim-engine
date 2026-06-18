@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { Search, Zap, Briefcase, ClipboardCheck, Award, Sparkles, ArrowRight, Bookmark } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Search, MapPin, Zap, Briefcase, ClipboardCheck, Award, Sparkles, ArrowRight, Bookmark, X } from 'lucide-react';
 import TopNav from '@/components/TopNav';
 import Footer from '@/components/Footer';
-import { Button, Tag, Card, Avatar, Badge } from '@/components/ui';
+import { Button, Tag, Card, Avatar } from '@/components/ui';
 
 type Job = {
   id: string;
@@ -26,6 +27,97 @@ const REMOTE_LABELS: Record<string, string> = {
 const EMPLOYMENT_LABELS: Record<string, string> = {
   full_time: 'Full-time', part_time: 'Part-time', contract: 'Contratto', internship: 'Stage',
 };
+
+function jobMatchesLocation(job: Job, loc: string): boolean {
+  if (!loc) return true;
+  const l = loc.toLowerCase();
+  if (job.location?.toLowerCase().includes(l)) return true;
+  const remoteLabel = job.remotePolicy ? REMOTE_LABELS[job.remotePolicy]?.toLowerCase() : undefined;
+  if (remoteLabel?.includes(l)) return true;
+  return false;
+}
+
+function buildLocationOptions(jobs: Job[]): string[] {
+  const cities = new Set<string>();
+  const remotePolicies = new Set<string>();
+  for (const j of jobs) {
+    if (j.location) cities.add(j.location);
+    if (j.remotePolicy && REMOTE_LABELS[j.remotePolicy]) remotePolicies.add(REMOTE_LABELS[j.remotePolicy]);
+  }
+  return [...remotePolicies, ...Array.from(cities).sort()];
+}
+
+function LocationInput({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const suggestions = options.filter(o =>
+    !value || o.toLowerCase().includes(value.toLowerCase())
+  );
+  const showDropdown = focused && suggestions.length > 0;
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFocused(false);
+      }
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative flex-[1_1_200px]">
+      <MapPin
+        size={17}
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none z-10"
+      />
+      <input
+        type="text"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => { setFocused(true); setOpen(true); }}
+        placeholder="Città o modalità"
+        className="w-full pl-10 pr-8 py-2.5 border border-ink-200 rounded-lg text-[14px] text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-brand transition bg-white h-12"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => { onChange(''); setOpen(false); }}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-300 hover:text-ink-500 transition-colors"
+        >
+          <X size={15} />
+        </button>
+      )}
+      {showDropdown && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-ink-200 rounded-lg shadow-md overflow-hidden">
+          {suggestions.map(s => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { onChange(s); setOpen(false); setFocused(false); }}
+              className="w-full text-left px-4 py-2.5 text-[14px] text-ink-700 hover:bg-ink-50 flex items-center gap-2.5 transition-colors"
+            >
+              <MapPin size={14} className="text-ink-400 flex-none" />
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function JobCard({ job }: { job: Job }) {
   const company = job.organization.name;
@@ -107,9 +199,11 @@ function HowStep({
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [location, setLocation] = useState('');
 
   useEffect(() => {
     fetch('/api/public/jobs')
@@ -119,14 +213,16 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const locationOptions = buildLocationOptions(jobs);
+
   const filtered = jobs.filter(j => {
     const q = search.toLowerCase();
-    return (
+    const matchesSearch =
       !q ||
       j.title.toLowerCase().includes(q) ||
       j.organization.name.toLowerCase().includes(q) ||
-      j.department?.toLowerCase().includes(q)
-    );
+      j.department?.toLowerCase().includes(q);
+    return matchesSearch && jobMatchesLocation(j, location);
   });
 
   return (
@@ -149,7 +245,19 @@ export default function HomePage() {
             Su Mansio completi le task reali del ruolo e dimostri cosa sai fare. Le aziende ti scelgono per
             le tue competenze, non per le parole nel curriculum.
           </p>
-          <div className="flex gap-2.5 max-w-[720px] flex-wrap items-start">
+
+          {/* Search bar */}
+          <form
+            className="flex gap-2.5 max-w-[820px] flex-wrap items-start"
+            onSubmit={e => {
+              e.preventDefault();
+              const params = new URLSearchParams();
+              if (search) params.set('q', search);
+              if (location) params.set('location', location);
+              router.push(`/jobs${params.toString() ? `?${params.toString()}` : ''}`);
+            }}
+          >
+            {/* Role search */}
             <div className="flex-[2_1_260px] relative">
               <Search
                 size={17}
@@ -163,15 +271,37 @@ export default function HomePage() {
                 className="w-full pl-10 pr-4 py-2.5 border border-ink-200 rounded-lg text-[14px] text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-brand transition bg-white h-12"
               />
             </div>
-            <Button size="lg" iconRight={<ArrowRight size={16} />}>Cerca</Button>
-          </div>
+
+            {/* Divider */}
+            <div className="hidden sm:block w-px bg-ink-200 self-stretch my-1" />
+
+            {/* Location autocomplete */}
+            <LocationInput
+              value={location}
+              onChange={setLocation}
+              options={locationOptions}
+            />
+
+            <Button type="submit" size="lg" iconRight={<ArrowRight size={16} />}>Cerca</Button>
+          </form>
+
           <div className="flex gap-2 mt-4 items-center flex-wrap">
             <span className="text-[13px] text-ink-500">Popolari:</span>
-            {['Product Designer', 'Frontend', 'Data Analyst', 'Remoto'].map(t => (
+            {['Product Designer', 'Frontend', 'Data Analyst'].map(t => (
               <button
                 key={t}
                 type="button"
-                onClick={() => setSearch(t)}
+                onClick={() => router.push(`/jobs?q=${encodeURIComponent(t)}`)}
+                className="text-[13px] font-medium px-2.5 py-1 rounded-md bg-ink-100 text-ink-600 hover:bg-ink-200 transition-colors"
+              >
+                {t}
+              </button>
+            ))}
+            {['Remoto', 'Milano', 'Roma'].map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => router.push(`/jobs?location=${encodeURIComponent(t)}`)}
                 className="text-[13px] font-medium px-2.5 py-1 rounded-md bg-ink-100 text-ink-600 hover:bg-ink-200 transition-colors"
               >
                 {t}
@@ -213,8 +343,19 @@ export default function HomePage() {
                 : 'Nessuna offerta corrisponde alla ricerca'}
             </p>
             <p className="text-ink-400 text-[14px]">
-              {jobs.length === 0 ? 'Torna a controllare presto.' : 'Prova con parole chiave diverse.'}
+              {jobs.length === 0
+                ? 'Torna a controllare presto.'
+                : 'Prova con parole chiave o luoghi diversi.'}
             </p>
+            {(search || location) && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setLocation(''); }}
+                className="mt-4 text-[13px] text-brand font-semibold hover:underline"
+              >
+                Rimuovi filtri
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
