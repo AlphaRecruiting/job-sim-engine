@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { ArrowRight, Building2, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Building2, Lock, Mail, User } from 'lucide-react';
 import { setToken, setUser } from '@/lib/auth';
 import { Button, Card, Alert, Input } from '@/components/ui';
 
@@ -12,8 +12,13 @@ function CompanyLoginForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') ?? '/admin/jobs';
 
+  const [mode, setMode] = useState<'login' | 'register'>(
+    searchParams.get('mode') === 'register' ? 'register' : 'login'
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,10 +27,15 @@ function CompanyLoginForm() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/login', {
+      const endpoint = mode === 'login' ? '/api/login' : '/api/register';
+      const body = mode === 'login'
+        ? { email, password }
+        : { email, password, name, companyName };
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Credenziali non valide'); return; }
@@ -37,6 +47,11 @@ function CompanyLoginForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function switchMode() {
+    setMode(m => m === 'login' ? 'register' : 'login');
+    setError('');
   }
 
   return (
@@ -62,13 +77,38 @@ function CompanyLoginForm() {
             <Building2 size={26} className="text-white" />
           </div>
 
-          <h1 className="text-[28px] text-center mb-1.5">Area aziende</h1>
+          <h1 className="text-[28px] text-center mb-1.5">
+            {mode === 'login' ? 'Area aziende' : 'Crea il tuo account'}
+          </h1>
           <p className="text-[15px] text-ink-500 text-center mb-8">
-            Accedi alla tua dashboard di selezione.
+            {mode === 'login'
+              ? 'Accedi alla tua dashboard di selezione.'
+              : 'Inizia a selezionare i candidati con Mansio.'}
           </p>
 
           <Card padding="lg">
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              {mode === 'register' && (
+                <>
+                  <Input
+                    label="Nome azienda"
+                    type="text"
+                    placeholder="Acme S.r.l."
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                    prefix={<Building2 size={15} />}
+                    required
+                  />
+                  <Input
+                    label="Il tuo nome"
+                    type="text"
+                    placeholder="Mario Rossi"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    prefix={<User size={15} />}
+                  />
+                </>
+              )}
               <Input
                 label="Email aziendale"
                 type="email"
@@ -97,16 +137,22 @@ function CompanyLoginForm() {
                 size="lg"
                 iconRight={<ArrowRight size={16} />}
               >
-                {loading ? 'Accesso in corso…' : 'Accedi'}
+                {loading
+                  ? (mode === 'login' ? 'Accesso in corso…' : 'Creazione account…')
+                  : (mode === 'login' ? 'Accedi' : 'Crea account')}
               </Button>
             </form>
           </Card>
 
           <p className="text-center text-[13px] text-ink-400 mt-5">
-            Non hai un account?{' '}
-            <Link href="/aziende" className="text-brand font-semibold hover:underline">
-              Scopri Mansio per le aziende
-            </Link>
+            {mode === 'login' ? 'Non hai un account?' : 'Hai già un account?'}{' '}
+            <button
+              type="button"
+              onClick={switchMode}
+              className="text-brand font-semibold hover:underline"
+            >
+              {mode === 'login' ? 'Registrati' : 'Accedi'}
+            </button>
           </p>
           <p className="text-center text-[13px] text-ink-400 mt-2">
             Sei un candidato?{' '}

@@ -201,7 +201,7 @@ export default function TopNav() {
                   <Link href="/login/company">
                     <Button size="sm" variant="secondary">Accedi</Button>
                   </Link>
-                  <Link href="/login/company">
+                  <Link href="/login/company?mode=register">
                     <Button size="sm">Registrati</Button>
                   </Link>
                 </>
