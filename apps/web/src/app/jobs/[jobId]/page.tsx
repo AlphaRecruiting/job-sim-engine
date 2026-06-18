@@ -3,12 +3,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft, MapPin, Briefcase, Zap, Play, ArrowRight, Check, CheckCircle,
-  Clock, Send, X, TrendingUp,
+  ArrowLeft, MapPin, Briefcase, Zap, Play, Check, TrendingUp,
 } from 'lucide-react';
 import TopNav from '@/components/TopNav';
 import Footer from '@/components/Footer';
-import { Button, Badge, Tag, Card, Avatar, Progress, Alert } from '@/components/ui';
+import { Button, Badge, Tag, Card, Avatar } from '@/components/ui';
 
 type Job = {
   id: string;
@@ -45,110 +44,6 @@ const SIM_TASKS = [
     placeholder: 'Metrica principale: …' },
 ];
 
-type SimTask = typeof SIM_TASKS[number];
-
-function SimTaskView({ task, value, onChange }: { task: SimTask; value: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-1.5">
-        <Badge tone="brand">{task.type}</Badge>
-        <span className="text-[13px] text-ink-500 flex items-center gap-1.5">
-          <Clock size={13} /> {task.est}
-        </span>
-      </div>
-      <h3 className="text-[22px] font-bold text-ink-950 mb-3">{task.title}</h3>
-      <div className="p-4 bg-ink-50 rounded-lg text-[15px] leading-relaxed text-ink-700 mb-5">
-        {task.prompt}
-      </div>
-      {task.kind === 'read' ? (
-        <Alert tone="info" title="Materiali del brief">
-          Il contesto del progetto è descritto sopra. Prenditi il tempo necessario prima di continuare.
-        </Alert>
-      ) : (
-        <textarea
-          rows={7}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={task.placeholder}
-          className="w-full border border-ink-200 rounded-lg px-3.5 py-2.5 text-[14px] text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-brand transition bg-white resize-none"
-        />
-      )}
-    </div>
-  );
-}
-
-function SimulationPanel({ job, onClose }: { job: Job; onClose: () => void }) {
-  const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [done, setDone] = useState(false);
-  const tasks = SIM_TASKS;
-  const task = tasks[step];
-  const completed = tasks.filter((t, i) =>
-    t.kind === 'read' ? i < step || done : (answers[t.id] && answers[t.id].length > 4)
-  ).length;
-  const canContinue = task.kind === 'read' || (answers[task.id] && answers[task.id].length > 4);
-  const isLast = step === tasks.length - 1;
-
-  if (done) {
-    return (
-      <div className="text-center py-6">
-        <div className="w-16 h-16 rounded-full bg-success-subtle flex items-center justify-center mx-auto mb-5">
-          <CheckCircle size={32} className="text-success" />
-        </div>
-        <h2 className="text-[26px] font-bold text-ink-950 mb-2">Simulazione inviata</h2>
-        <p className="text-[15px] text-ink-600 max-w-[360px] mx-auto leading-relaxed mb-6">
-          Hai completato tutte le {tasks.length} task per <strong>{job.title}</strong>. Riceverai feedback
-          entro 3 giorni lavorativi.
-        </p>
-        <div className="flex gap-2.5 justify-center">
-          <Button onClick={onClose}>Torna all'offerta</Button>
-          <Button variant="secondary" onClick={() => { setDone(false); setStep(0); setAnswers({}); }}>
-            Ricomincia
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="text-[13px] text-ink-500">Simulazione · {job.title}</div>
-          <div className="text-[12px] font-mono text-ink-400">Task {step + 1} di {tasks.length}</div>
-        </div>
-        <button type="button" onClick={onClose} className="text-ink-400 hover:text-ink-700 transition-colors">
-          <X size={20} />
-        </button>
-      </div>
-      <Progress value={completed} max={tasks.length} label="Avanzamento" tone="success" />
-      <div className="flex gap-1.5 mt-5 mb-6">
-        {tasks.map((t, i) => (
-          <div key={t.id} className={`flex-1 h-1 rounded-full transition-colors ${i <= step ? 'bg-brand' : 'bg-ink-200'}`} />
-        ))}
-      </div>
-      <SimTaskView
-        task={task}
-        value={answers[task.id] ?? ''}
-        onChange={v => setAnswers(a => ({ ...a, [task.id]: v }))}
-      />
-      <div className="flex justify-between mt-7">
-        <Button variant="ghost" disabled={step === 0} onClick={() => setStep(s => Math.max(0, s - 1))} iconLeft={<ArrowLeft size={16} />}>
-          Indietro
-        </Button>
-        {isLast ? (
-          <Button disabled={!canContinue} onClick={() => setDone(true)} iconRight={<Send size={15} />}>
-            Invia simulazione
-          </Button>
-        ) : (
-          <Button disabled={!canContinue} onClick={() => setStep(s => s + 1)} iconRight={<ArrowRight size={15} />}>
-            Continua
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 const EMPLOYMENT_LABELS: Record<string, string> = {
   full_time: 'Full-time', part_time: 'Part-time', contract: 'Contratto', internship: 'Stage',
@@ -163,7 +58,6 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [simOpen, setSimOpen] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
@@ -187,8 +81,7 @@ export default function JobDetailPage() {
     }
   }, [jobId]);
 
-  async function handleApply(e?: React.FormEvent) {
-    e?.preventDefault();
+  async function handleApply(openInNewTab = false) {
     setError('');
     setApplying(true);
     try {
@@ -199,7 +92,12 @@ export default function JobDetailPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Candidatura non riuscita.'); return; }
-      router.push(`/apply/${data.applicationToken}`);
+      const url = `/apply/${data.applicationToken}`;
+      if (openInNewTab) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        router.push(url);
+      }
     } catch {
       setError('Errore di rete — riprova.');
     } finally {
@@ -296,10 +194,7 @@ export default function JobDetailPage() {
           {/* Sidebar */}
           <div className="sticky top-[88px] flex flex-col gap-4">
             <Card padding="lg" style={{ border: '1.5px solid #B8C9FF' }}>
-              {simOpen ? (
-                <SimulationPanel job={job} onClose={() => setSimOpen(false)} />
-              ) : (
-                <>
+              <>
                   <div className="flex items-center gap-2 mb-2">
                     <Zap size={17} className="text-brand" />
                     <span className="text-[12px] font-bold tracking-[.04em] uppercase text-blue-700">
@@ -341,7 +236,7 @@ export default function JobDetailPage() {
                         <Link href="/candidate/profile" className="text-[12px] text-blue-600 hover:underline flex-none">Modifica</Link>
                       </div>
                       {error && <div className="bg-danger-subtle border border-danger/20 text-danger-dark text-[14px] rounded-lg px-4 py-3 mb-3">{error}</div>}
-                      <Button block size="lg" onClick={job.activeSimulationVersionId ? () => setSimOpen(true) : () => handleApply()} disabled={applying} iconLeft={job.activeSimulationVersionId ? <Play size={16} /> : undefined}>
+                      <Button block size="lg" onClick={() => handleApply(!!job.activeSimulationVersionId)} disabled={applying} iconLeft={job.activeSimulationVersionId ? <Play size={16} /> : undefined}>
                         {applying ? 'Avvio…' : job.activeSimulationVersionId ? 'Inizia la simulazione' : 'Candidati ora'}
                       </Button>
                     </div>
@@ -357,17 +252,14 @@ export default function JobDetailPage() {
                     </div>
                   )}
                 </>
-              )}
             </Card>
 
-            {!simOpen && (
-              <Card padding="md">
-                <div className="flex items-center gap-2 text-[14px] text-ink-700">
-                  <TrendingUp size={16} className="text-success flex-none" />
-                  Chi completa la simulazione ha 4× più probabilità di colloquio
-                </div>
-              </Card>
-            )}
+            <Card padding="md">
+              <div className="flex items-center gap-2 text-[14px] text-ink-700">
+                <TrendingUp size={16} className="text-success flex-none" />
+                Chi completa la simulazione ha 4× più probabilità di colloquio
+              </div>
+            </Card>
           </div>
         </div>
       </div>
