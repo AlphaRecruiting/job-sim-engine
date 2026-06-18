@@ -3,9 +3,20 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 
+type Submission = {
+  id: string;
+  stepId: string;
+  stepType: string;
+  status: string;
+  answer: any;
+  score: any;
+  scoringStatus: string;
+  submittedAt?: string;
+};
+
 type Result = {
   result: { totalScore?: number; recommendation?: string; skillScores?: Record<string, number>; redFlags?: any[]; summary?: string };
-  submissions: Array<{ id: string; stepId: string; stepType: string; status: string; answer: any; score: any; scoringStatus: string; submittedAt?: string }>;
+  submissions: Submission[];
   events: Array<{ id: string; eventType: string; stepId?: string; createdAt: string }>;
 };
 
@@ -42,26 +53,151 @@ const REC_LABELS: Record<string, string> = {
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  session_started:    'Sessione avviata',
-  session_completed:  'Sessione completata',
-  step_started:       'Step avviato',
-  step_completed:     'Step completato',
-  step_skipped:       'Step saltato',
-  step_timeout:       'Step scaduto',
-  scoring_started:    'Valutazione avviata',
-  scoring_completed:  'Valutazione completata',
+  session_started:   'Sessione avviata',
+  session_completed: 'Sessione completata',
+  step_started:      'Step avviato',
+  step_completed:    'Step completato',
+  step_skipped:      'Step saltato',
+  step_timeout:      'Step scaduto',
+  scoring_started:   'Valutazione avviata',
+  scoring_completed: 'Valutazione completata',
 };
 
-const recColor: Record<string, string> = { strong_yes: 'text-green-700', yes: 'text-blue-700', maybe: 'text-yellow-700', no: 'text-red-700', review_required: 'text-orange-700' };
+const recColor: Record<string, string> = {
+  strong_yes: 'text-green-700', yes: 'text-blue-700',
+  maybe: 'text-yellow-700', no: 'text-red-700', review_required: 'text-orange-700',
+};
 
 function labelFor(map: Record<string, string>, key: string): string {
   return map[key] ?? key.replace(/_/g, ' ');
+}
+
+function AnswerView({ stepType, answer }: { stepType: string; answer: any }) {
+  if (!answer) return null;
+
+  if (stepType === 'free_text') {
+    const text: string = answer.text ?? answer.response ?? '';
+    if (!text) return null;
+    return (
+      <div className="mt-3 bg-ink-50 rounded-lg p-4 text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap border border-gray-100">
+        {text}
+      </div>
+    );
+  }
+
+  if (stepType === 'email_response') {
+    const subject: string = answer.subject ?? '';
+    const body: string = answer.body ?? answer.text ?? '';
+    if (!subject && !body) return null;
+    return (
+      <div className="mt-3 bg-ink-50 rounded-lg border border-gray-100 overflow-hidden text-[13px]">
+        {subject && (
+          <div className="px-4 py-2 border-b border-gray-200 flex gap-2">
+            <span className="text-gray-400 shrink-0">Oggetto:</span>
+            <span className="font-medium text-gray-800">{subject}</span>
+          </div>
+        )}
+        {body && (
+          <div className="px-4 py-3 text-gray-700 leading-relaxed whitespace-pre-wrap">{body}</div>
+        )}
+      </div>
+    );
+  }
+
+  if (stepType === 'multiple_choice') {
+    const selected: string[] = answer.selectedOptionIds ?? (answer.selectedOptionId ? [answer.selectedOptionId] : []);
+    if (!selected.length) return null;
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        {selected.map((id: string) => (
+          <span key={id} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-[12px] font-semibold px-2.5 py-1 rounded-md">
+            ✓ {id}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (stepType === 'crm_prioritization') {
+    const items: any[] = answer.rankedItems ?? answer.orderedRecords ?? [];
+    const explanation: string = answer.explanation ?? '';
+    if (!items.length && !explanation) return null;
+    return (
+      <div className="mt-3 space-y-3">
+        {items.length > 0 && (
+          <div className="space-y-1">
+            {items.map((item: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 text-[13px]">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[11px] font-bold shrink-0">{i + 1}</span>
+                <span className="text-gray-800">{item.name ?? item.company ?? item.id ?? String(item)}</span>
+                {item.reason && <span className="text-gray-400 text-[12px]">— {item.reason}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        {explanation && (
+          <div className="bg-ink-50 rounded-lg p-3 text-[13px] text-gray-700 leading-relaxed border border-gray-100">
+            <span className="text-gray-400 text-[12px] block mb-1">Spiegazione</span>
+            {explanation}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (stepType === 'notification_reaction') {
+    const actions: any[] = answer.actions ?? answer.reactions ?? [];
+    if (!actions.length) return null;
+    const ACTION_LABELS: Record<string, string> = {
+      reply:              'Risposta inviata',
+      ignore:             'Ignorata',
+      escalate:           'Escalation',
+      schedule_followup:  'Follow-up pianificato',
+      create_task:        'Task creata',
+    };
+    return (
+      <div className="mt-3 space-y-2">
+        {actions.map((a: any, i: number) => (
+          <div key={i} className="flex items-start gap-3 text-[13px] bg-ink-50 rounded-lg p-3 border border-gray-100">
+            <span className="font-semibold text-gray-700 shrink-0">{ACTION_LABELS[a.action] ?? a.action}</span>
+            {a.note && <span className="text-gray-500">— {a.note}</span>}
+            {a.response && <span className="text-gray-600 whitespace-pre-wrap">{a.response}</span>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (stepType === 'simulated_call') {
+    const transcript: any[] = answer.transcript ?? [];
+    if (!transcript.length) return null;
+    return (
+      <details className="mt-3">
+        <summary className="text-[12px] text-blue-600 cursor-pointer hover:underline select-none">
+          Mostra trascrizione ({transcript.length} turni)
+        </summary>
+        <div className="mt-2 space-y-2 max-h-72 overflow-auto bg-ink-50 rounded-lg p-3 border border-gray-100">
+          {transcript.map((t: any, i: number) => (
+            <div key={i} className={`text-[12px] ${t.speaker === 'candidate' ? 'text-blue-800' : 'text-gray-600'}`}>
+              <span className="font-semibold uppercase text-[11px] mr-1">
+                {t.speaker === 'candidate' ? 'Candidato' : 'Interlocutore'}:
+              </span>
+              {t.text}
+            </div>
+          ))}
+        </div>
+      </details>
+    );
+  }
+
+  return null;
 }
 
 export default function CandidateDetailPage() {
   const { sessionId } = useParams<{ candidateId: string; sessionId: string }>();
   const [data, setData] = useState<Result | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api.get<Result>(`/api/sessions/${sessionId}/result`).then(setData).catch(console.error).finally(() => setLoading(false));
@@ -71,6 +207,14 @@ export default function CandidateDetailPage() {
   if (!data) return <div className="text-red-600">Impossibile caricare i risultati.</div>;
 
   const { result, submissions, events } = data;
+
+  function toggleExpanded(id: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -83,7 +227,9 @@ export default function CandidateDetailPage() {
           <div className="text-sm text-gray-500 mt-1">Punteggio totale</div>
         </div>
         <div className="border-l border-gray-200 pl-8">
-          <div className={`text-xl font-bold ${recColor[result.recommendation ?? ''] ?? 'text-gray-700'}`}>{result.recommendation ? labelFor(REC_LABELS, result.recommendation) : '—'}</div>
+          <div className={`text-xl font-bold ${recColor[result.recommendation ?? ''] ?? 'text-gray-700'}`}>
+            {result.recommendation ? labelFor(REC_LABELS, result.recommendation) : '—'}
+          </div>
           <div className="text-sm text-gray-500 mt-1">Raccomandazione</div>
           {result.summary && <p className="text-sm text-gray-600 mt-3">{result.summary}</p>}
         </div>
@@ -109,7 +255,9 @@ export default function CandidateDetailPage() {
           <h3 className="font-semibold text-red-700 mb-2">Segnali critici</h3>
           {result.redFlags.map((f: any, i: number) => (
             <div key={i} className="flex items-start gap-2 text-sm text-red-600">
-              <span className={`mt-0.5 text-xs px-1.5 py-0.5 rounded ${f.severity === 'high' ? 'bg-red-200' : f.severity === 'medium' ? 'bg-orange-200 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>{f.severity}</span>
+              <span className={`mt-0.5 text-xs px-1.5 py-0.5 rounded ${f.severity === 'high' ? 'bg-red-200' : f.severity === 'medium' ? 'bg-orange-200 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                {f.severity}
+              </span>
               <span>{f.message}</span>
             </div>
           ))}
@@ -120,45 +268,65 @@ export default function CandidateDetailPage() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-200 font-semibold">Risultati per step</div>
         <div className="divide-y divide-gray-100">
-          {submissions.map(sub => (
-            <div key={sub.id} className="px-5 py-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium mr-2">{labelFor(STEP_LABELS, sub.stepType)}</span>
-                  <span className="text-sm font-medium">{labelFor(STATUS_LABELS, sub.status)}</span>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold">{sub.score?.totalScore != null ? `${sub.score.totalScore}%` : '—'}</div>
-                  <div className="text-xs text-gray-400">{labelFor(SCORING_LABELS, sub.scoringStatus)}</div>
-                </div>
-              </div>
-              {sub.score?.summary && <p className="text-sm text-gray-600 mt-1">{sub.score.summary}</p>}
-              {sub.score?.criteria && sub.score.criteria.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  {sub.score.criteria.map((c: any) => (
-                    <div key={c.key} className="flex items-start gap-3 text-xs">
-                      <span className="text-gray-500 w-36 shrink-0">{c.label}</span>
-                      <span className="font-medium">{c.score}/{c.maxScore}</span>
-                      {c.evidence && <span className="text-gray-400">{c.evidence}</span>}
+          {submissions.map(sub => {
+            const open = expanded.has(sub.id);
+            return (
+              <div key={sub.id} className="px-5 py-4">
+                {/* Header row */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">
+                      {labelFor(STEP_LABELS, sub.stepType)}
+                    </span>
+                    <span className="text-sm font-medium text-gray-700">{labelFor(STATUS_LABELS, sub.status)}</span>
+                    {sub.submittedAt && (
+                      <span className="text-xs text-gray-400">
+                        {new Date(sub.submittedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-900">{sub.score?.totalScore != null ? `${sub.score.totalScore}%` : '—'}</div>
+                      <div className="text-xs text-gray-400">{labelFor(SCORING_LABELS, sub.scoringStatus)}</div>
                     </div>
-                  ))}
+                    {/* Toggle answer */}
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(sub.id)}
+                      className="text-[12px] font-semibold text-blue-600 hover:text-blue-800 underline-offset-2 hover:underline transition-colors"
+                    >
+                      {open ? 'Nascondi risposta' : 'Vedi risposta'}
+                    </button>
+                  </div>
                 </div>
-              )}
-              {/* Show transcript for call steps */}
-              {sub.stepType === 'simulated_call' && sub.answer?.transcript?.length > 0 && (
-                <details className="mt-3">
-                  <summary className="text-xs text-blue-600 cursor-pointer hover:underline">Mostra trascrizione ({sub.answer.transcript.length} turni)</summary>
-                  <div className="mt-2 space-y-2 max-h-64 overflow-auto bg-gray-50 rounded p-3">
-                    {sub.answer.transcript.map((t: any, i: number) => (
-                      <div key={i} className={`text-xs ${t.speaker === 'candidate' ? 'text-blue-800' : 'text-gray-700'}`}>
-                        <span className="font-medium">{t.speaker === 'candidate' ? 'CANDIDATO' : 'BUYER'}: </span>{t.text}
+
+                {/* AI review */}
+                {sub.score?.summary && (
+                  <p className="text-sm text-gray-600 mt-1 mb-2 italic">"{sub.score.summary}"</p>
+                )}
+                {sub.score?.criteria && sub.score.criteria.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {sub.score.criteria.map((c: any) => (
+                      <div key={c.key} className="flex items-start gap-3 text-xs">
+                        <span className="text-gray-500 w-36 shrink-0">{c.label}</span>
+                        <span className="font-semibold text-gray-800">{c.score}/{c.maxScore}</span>
+                        {c.evidence && <span className="text-gray-400">{c.evidence}</span>}
                       </div>
                     ))}
                   </div>
-                </details>
-              )}
-            </div>
-          ))}
+                )}
+
+                {/* Candidate answer — shown when expanded */}
+                {open && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Risposta del candidato</div>
+                    <AnswerView stepType={sub.stepType} answer={sub.answer} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
