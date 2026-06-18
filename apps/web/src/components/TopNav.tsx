@@ -169,9 +169,9 @@ export default function TopNav() {
               {label}
             </Link>
           ))}
-        </nav>
 
-        <div className="ml-auto flex items-center gap-3">
+          {/* Per le aziende — vicino ai link di navigazione */}
+          <div className="w-px h-5 bg-ink-200" />
           {companyUser ? (
             <Link
               href="/admin/jobs"
@@ -187,17 +187,22 @@ export default function TopNav() {
               <Building2 size={16} /> Per le aziende
             </Link>
           )}
+        </nav>
 
-          <div className="w-px h-6 bg-ink-200" />
-
+        <div className="ml-auto flex items-center gap-3">
           {authState === 'loading' && (
             <div className="w-8 h-8 rounded-full bg-ink-100 animate-pulse" />
           )}
 
           {authState === 'guest' && (
-            <Link href="/candidate/login">
-              <Button size="sm" variant="secondary">Accedi</Button>
-            </Link>
+            <>
+              <Link href="/candidate/login">
+                <Button size="sm" variant="secondary">Accedi</Button>
+              </Link>
+              <Link href="/candidate/register">
+                <Button size="sm">Registrati</Button>
+              </Link>
+            </>
           )}
 
           {authState === 'auth' && (
