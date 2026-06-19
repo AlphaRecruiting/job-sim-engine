@@ -248,7 +248,15 @@ router.patch('/application/:token/profile', async (req, res) => {
   if (!application) { res.status(404).json({ error: 'Not found' }); return; }
 
   const { name, phone } = req.body;
-  await prisma.candidate.update({ where: { id: application.candidateId }, data: { ...(name ? { name } : {}), ...(phone ? { phone } : {}) } });
+  if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0 || name.length > 255)) {
+    res.status(400).json({ error: 'name must be a non-empty string under 255 characters' });
+    return;
+  }
+  if (phone !== undefined && (typeof phone !== 'string' || phone.length > 30)) {
+    res.status(400).json({ error: 'phone must be a string under 30 characters' });
+    return;
+  }
+  await prisma.candidate.update({ where: { id: application.candidateId }, data: { ...(name ? { name: name.trim() } : {}), ...(phone ? { phone } : {}) } });
   res.json({ success: true });
 });
 

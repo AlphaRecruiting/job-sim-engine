@@ -377,7 +377,7 @@ async function waitForURL(pattern: RegExp, timeout = 15000) {
 async function handleWelcomeStep() {
   log('  → Welcome step: reading for 6 seconds...');
   await wait(6000);
-  await clickButtonByText('Continue');
+  await clickButtonByText('Continue').catch(() => clickButtonByText('Continua'));
 }
 
 async function handleCrmStep() {
@@ -392,16 +392,16 @@ async function handleCrmStep() {
     { delay: 15 }
   );
   await wait(500);
-  await clickButtonByText('Submit Step');
+  await clickButtonByText('Avanti');
 }
 
 async function handleSimulatedCallStep() {
   log('  → Simulated Call: starting → waiting 8s → ending...');
-  await clickButtonByText('Start Call', 10000);
+  await clickButtonByText('Inizia la chiamata', 10000);
   await wait(8000);
-  await clickButtonByText('End Call');
+  await clickButtonByText('Termina chiamata');
   await wait(1000);
-  await clickButtonByText('Submit Step');
+  await clickButtonByText('Avanti');
 }
 
 async function handleFreeTextStep(text: string) {
@@ -410,7 +410,7 @@ async function handleFreeTextStep(text: string) {
   await page.click('textarea');
   await page.type('textarea', text, { delay: 10 });
   await wait(500);
-  await clickButtonByText('Submit Step');
+  await clickButtonByText('Avanti');
 }
 
 async function handleNotificationStep() {
@@ -451,7 +451,7 @@ async function handleNotificationStep() {
   }
 
   await wait(500);
-  await clickButtonByText('Submit Step');
+  await clickButtonByText('Avanti');
 }
 
 // ── Main flow ────────────────────────────────────────────────────────────────
@@ -551,7 +551,7 @@ async function run() {
         } else {
           log(`  ⚠ Unknown step type "${stepType}" — trying generic submit after 3s`);
           await wait(3000);
-          await clickButtonByText('Submit Step').catch(() => clickButtonByText('Continue').catch(() => {}));
+          await clickButtonByText('Avanti').catch(() => clickButtonByText('Continua').catch(() => {}));
         }
       } catch (e: any) {
         err(`Step ${stepCount} error: ${e.message}`);
@@ -571,7 +571,10 @@ async function run() {
       // Find step link and click it
       const clicked = await page.evaluate(() => {
         const a = document.querySelector('a[href*="/step/"]') as HTMLAnchorElement | null;
-        const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.includes('Continue') || b.textContent?.includes('Start'));
+        const btn = Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent?.includes('Continue') || b.textContent?.includes('Start') ||
+          b.textContent?.includes('Continua') || b.textContent?.includes('Inizia')
+        );
         if (a) { a.click(); return true; }
         if (btn) { (btn as HTMLButtonElement).click(); return true; }
         return false;

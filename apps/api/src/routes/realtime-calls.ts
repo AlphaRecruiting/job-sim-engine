@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { scoringQueue } from '../lib/queues';
 import { getModule } from '@job-sim/simulation-modules';
 import { SimulationVersionSnapshot } from '@job-sim/shared';
+import { AuthRequest, requireAuth } from '../middleware/auth';
 
 const router = Router();
 const openai = new OpenAI({
@@ -109,6 +110,13 @@ router.post('/realtime-call-sessions/:callSessionId/events', async (req, res) =>
   const callSession = await prisma.realtimeCallSession.findUnique({ where: { id: req.params.callSessionId } });
   if (!callSession) { res.status(404).json({ error: 'Not found' }); return; }
 
+  // Ownership check: the caller must supply the sessionToken of the parent simulation session.
+  // This is the same unforgeable bearer credential used by all other candidate-facing endpoints.
+  const { sessionToken } = req.body;
+  if (!sessionToken) { res.status(401).json({ error: 'Missing sessionToken' }); return; }
+  const simSession = await prisma.simulationSession.findFirst({ where: { id: callSession.sessionId, sessionToken } });
+  if (!simSession) { res.status(403).json({ error: 'Forbidden' }); return; }
+
   await prisma.realtimeCallEvent.create({
     data: { organizationId: callSession.organizationId, realtimeCallSessionId: callSession.id, eventType: req.body.eventType, payload: req.body.payload },
   });
@@ -117,20 +125,20 @@ router.post('/realtime-call-sessions/:callSessionId/events', async (req, res) =>
 
 // End call and create submission
 router.post('/realtime-call-sessions/:callSessionId/end', async (req, res) => {
-  const callSession = await prisma.realtimeCallSession.findUnique({ where: { id: req.params.callSessionId } });
-  if (!callSession) { res.status(404).json({ error: 'Not found' }); return; }
+  const { sessionToken, transcript, outcome, metrics } = req.body;
+  if (!sessionToken) { res.status(400).json({ error: 'sessionToken required' }); return; }
 
-  const { transcript, outcome, metrics } = req.body;
+  const simSession = await prisma.simulationSession.findFirst({ where: { sessionToken } });
+  if (!simSession) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const callSession = await prisma.realtimeCallSession.findFirst({ where: { id: req.params.callSessionId, sessionId: simSession.id } });
+  if (!callSession) { res.status(404).json({ error: 'Not found' }); return; }
   const durationSeconds = metrics?.durationSeconds ?? (callSession.startedAt ? Math.floor((Date.now() - callSession.startedAt.getTime()) / 1000) : 0);
 
   await prisma.realtimeCallSession.update({
     where: { id: callSession.id },
     data: { status: 'completed', endedAt: new Date(), durationSeconds, transcript, callMetrics: metrics, outcome },
   });
-
-  // Find the parent simulation session
-  const simSession = await prisma.simulationSession.findUnique({ where: { id: callSession.sessionId } });
-  if (!simSession) { res.status(404).json({ error: 'Session not found' }); return; }
 
   // Create StepSubmission
   const submission = await prisma.stepSubmission.create({
@@ -156,8 +164,8 @@ router.post('/realtime-call-sessions/:callSessionId/end', async (req, res) => {
 });
 
 // Admin view
-router.get('/admin/realtime-call-sessions/:callSessionId', async (req, res) => {
-  const callSession = await prisma.realtimeCallSession.findUnique({ where: { id: req.params.callSessionId }, include: { events: { orderBy: { createdAt: 'asc' } } } });
+router.get('/admin/realtime-call-sessions/:callSessionId', requireAuth, async (req: AuthRequest, res) => {
+  const callSession = await prisma.realtimeCallSession.findUnique({ where: { id: req.params.callSessionId, organizationId: req.organizationId }, include: { events: { orderBy: { createdAt: 'asc' } } } });
   if (!callSession) { res.status(404).json({ error: 'Not found' }); return; }
   res.json(callSession);
 });

@@ -9,7 +9,10 @@ type Profile = { id: string; email: string; name?: string };
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/candidate/profile';
+  const rawRedirect = searchParams.get('redirect');
+  const redirect = rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
+    ? rawRedirect
+    : '/candidate/profile';
 
   const [mode, setMode] = useState<'login' | 'register'>(
     searchParams.get('mode') === 'register' ? 'register' : 'login'

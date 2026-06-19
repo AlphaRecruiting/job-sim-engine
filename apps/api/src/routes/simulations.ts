@@ -19,20 +19,29 @@ router.get('/jobs/:jobId/simulation', async (req: AuthRequest, res) => {
 router.post('/jobs/:jobId/simulation', async (req: AuthRequest, res) => {
   const job = await prisma.jobPosting.findFirst({ where: { id: req.params.jobId, organizationId: req.organizationId } });
   if (!job) { res.status(404).json({ error: 'Job not found' }); return; }
+  const { title, description, estimatedDurationMinutes } = req.body;
   const sim = await prisma.simulation.create({
-    data: { ...req.body, organizationId: req.organizationId!, jobPostingId: job.id, createdByUserId: req.userId!, status: 'draft' },
+    data: { title, description, estimatedDurationMinutes, organizationId: req.organizationId!, jobPostingId: job.id, createdByUserId: req.userId!, status: 'draft' },
   });
   res.status(201).json(sim);
 });
 
 router.patch('/:simulationId', async (req: AuthRequest, res) => {
-  const sim = await prisma.simulation.updateMany({ where: { id: req.params.simulationId, organizationId: req.organizationId }, data: req.body });
+  const { title, description, estimatedDurationMinutes } = req.body;
+  const sim = await prisma.simulation.updateMany({
+    where: { id: req.params.simulationId, organizationId: req.organizationId },
+    data: {
+      ...(title !== undefined && { title }),
+      ...(description !== undefined && { description }),
+      ...(estimatedDurationMinutes !== undefined && { estimatedDurationMinutes }),
+    },
+  });
   res.json(sim);
 });
 
 // Steps
 router.post('/:simulationId/steps', async (req: AuthRequest, res) => {
-  const { type, config } = req.body;
+  const { type, title, instructions, config, timeLimitSeconds, isRequired, scoringConfig, skillMapping } = req.body;
   const mod = getModule(type);
   const validation = mod.validateConfig(config);
   if (!validation.success) { res.status(400).json({ error: 'Invalid config', details: validation.errors }); return; }
@@ -41,18 +50,31 @@ router.post('/:simulationId/steps', async (req: AuthRequest, res) => {
   const maxIndex = existing.length ? Math.max(...existing.map(s => s.orderIndex)) : -1;
 
   const step = await prisma.simulationStep.create({
-    data: { ...req.body, organizationId: req.organizationId!, simulationId: req.params.simulationId, orderIndex: maxIndex + 1 },
+    data: { type, title, instructions, config, timeLimitSeconds, isRequired, scoringConfig, skillMapping, organizationId: req.organizationId!, simulationId: req.params.simulationId, orderIndex: maxIndex + 1 },
   });
   res.status(201).json(step);
 });
 
 router.patch('/:simulationId/steps/:stepId', async (req: AuthRequest, res) => {
-  if (req.body.type && req.body.config) {
-    const mod = getModule(req.body.type);
-    const validation = mod.validateConfig(req.body.config);
+  const { type, title, instructions, config, timeLimitSeconds, isRequired, scoringConfig, skillMapping } = req.body;
+  if (type && config) {
+    const mod = getModule(type);
+    const validation = mod.validateConfig(config);
     if (!validation.success) { res.status(400).json({ error: 'Invalid config', details: validation.errors }); return; }
   }
-  const step = await prisma.simulationStep.updateMany({ where: { id: req.params.stepId, organizationId: req.organizationId }, data: req.body });
+  const step = await prisma.simulationStep.updateMany({
+    where: { id: req.params.stepId, organizationId: req.organizationId },
+    data: {
+      ...(type !== undefined && { type }),
+      ...(title !== undefined && { title }),
+      ...(instructions !== undefined && { instructions }),
+      ...(config !== undefined && { config }),
+      ...(timeLimitSeconds !== undefined && { timeLimitSeconds }),
+      ...(isRequired !== undefined && { isRequired }),
+      ...(scoringConfig !== undefined && { scoringConfig }),
+      ...(skillMapping !== undefined && { skillMapping }),
+    },
+  });
   res.json(step);
 });
 

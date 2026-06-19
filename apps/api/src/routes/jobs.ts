@@ -113,12 +113,27 @@ router.get('/:jobId/analytics', async (req: AuthRequest, res) => {
   res.json({ totalApplications: applications, completedResults: results.length, averageScore: avg, results });
 });
 
+function sanitizeCsvValue(val: string | null | undefined): string {
+  if (val == null) return '';
+  const str = String(val);
+  // Wrap in quotes if contains comma, quote, or newline
+  const needsQuoting = str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r');
+  // Prefix formula starters to prevent injection
+  const safe = str.startsWith('=') || str.startsWith('+') || str.startsWith('-') || str.startsWith('@')
+    ? "'" + str
+    : str;
+  if (needsQuoting || safe !== str) {
+    return '"' + safe.replace(/"/g, '""') + '"';
+  }
+  return safe;
+}
+
 router.get('/:jobId/export.csv', async (req: AuthRequest, res) => {
   const results = await prisma.candidateResult.findMany({
     where: { jobPostingId: req.params.jobId, organizationId: req.organizationId },
     include: { candidate: true },
   });
-  const csv = ['email,name,score,recommendation', ...results.map(r => `${r.candidate.email},${r.candidate.name ?? ''},${r.totalScore ?? ''},${r.recommendation ?? ''}`)].join('\n');
+  const csv = ['email,name,score,recommendation', ...results.map(r => `${sanitizeCsvValue(r.candidate.email)},${sanitizeCsvValue(r.candidate.name)},${sanitizeCsvValue(r.totalScore != null ? String(r.totalScore) : null)},${sanitizeCsvValue(r.recommendation)}`)].join('\n');
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="results.csv"`);
   res.send(csv);

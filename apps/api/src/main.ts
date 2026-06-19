@@ -15,7 +15,14 @@ import resultsRouter from './routes/results';
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: process.env.APP_URL || 'http://localhost:3000', credentials: true }));
+const appUrl = process.env.APP_URL;
+if (!appUrl && process.env.NODE_ENV === 'production') {
+  throw new Error('APP_URL environment variable is required in production');
+}
+app.use(cors({
+  origin: appUrl || 'http://localhost:3000',
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 
 app.get('/health', (_, res) => res.json({ ok: true, ts: new Date().toISOString() }));
@@ -32,7 +39,11 @@ app.use('/api', realtimeCallsRouter);
 app.use('/api', resultsRouter);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(err);
+  } else {
+    console.error(`[${new Date().toISOString()}] Unhandled error: ${err?.message ?? err}`);
+  }
   res.status(500).json({ error: 'Internal server error' });
 });
 

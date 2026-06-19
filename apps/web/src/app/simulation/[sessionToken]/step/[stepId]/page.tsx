@@ -607,7 +607,7 @@ function SimulatedCallRenderer({ config, answer, onChange, onTrackEvent }: any) 
           ))}
         </div>
         <div className="p-4 bg-green-50 border-t border-green-200">
-          <p className="text-sm font-semibold text-green-700 text-center">Chiamata completata — clicca "Submit Step →" per procedere</p>
+          <p className="text-sm font-semibold text-green-700 text-center">Chiamata completata — clicca "Avanti →" per procedere</p>
         </div>
       </div>
     );

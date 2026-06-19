@@ -10,7 +10,10 @@ import { Button, Card, Alert, Input } from '@/components/ui';
 function CompanyLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/admin/jobs';
+  const rawRedirect = searchParams.get('redirect');
+  const redirect = rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
+    ? rawRedirect
+    : '/admin/jobs';
 
   const [mode, setMode] = useState<'login' | 'register'>(
     searchParams.get('mode') === 'register' ? 'register' : 'login'

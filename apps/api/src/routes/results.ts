@@ -13,7 +13,7 @@ router.get('/sessions/:sessionId/result', async (req: AuthRequest, res) => {
   });
   if (!result) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const submissions = await prisma.stepSubmission.findMany({ where: { sessionId: req.params.sessionId } });
+  const submissions = await prisma.stepSubmission.findMany({ where: { sessionId: req.params.sessionId, organizationId: req.organizationId } });
   const events = await prisma.simulationEvent.findMany({ where: { sessionId: req.params.sessionId }, orderBy: { createdAt: 'asc' } });
 
   res.json({ result, submissions, events });
