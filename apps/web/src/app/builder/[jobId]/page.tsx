@@ -20,6 +20,7 @@ type Job = { id: string; title: string; status: string };
 type Sim = { id: string; title: string; status: string; steps: Step[] };
 
 const MODULE_LABELS: Record<string, string> = {
+  welcome:               'Benvenuto / Onboarding',
   multiple_choice:       'Scelta multipla',
   free_text:             'Testo libero',
   crm_prioritization:    'Prioritizzazione CRM',
@@ -30,6 +31,7 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const MODULE_ICONS: Record<string, React.ReactNode> = {
+  welcome:               <CheckCircle size={14} />,
   multiple_choice:       <List size={14} />,
   free_text:             <AlignLeft size={14} />,
   crm_prioritization:    <LayoutGrid size={14} />,
@@ -40,6 +42,7 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
 };
 
 const MODULE_COLORS: Record<string, string> = {
+  welcome:               'bg-indigo-50 text-indigo-700',
   multiple_choice:       'bg-blue-50 text-blue-700',
   free_text:             'bg-ink-100 text-ink-700',
   crm_prioritization:    'bg-purple-50 text-purple-700',
@@ -51,6 +54,7 @@ const MODULE_COLORS: Record<string, string> = {
 
 function getDefaultConfig(type: string): Record<string, unknown> {
   const defaults: Record<string, unknown> = {
+    welcome: { founderName: '', founderRole: '', founderMessage: '', minReadSeconds: 15 },
     multiple_choice: { question: 'Question here?', options: [{ id: 'a', label: 'Option A', isCorrect: true }, { id: 'b', label: 'Option B', isCorrect: false }], allowMultiple: false, randomizeOptions: false },
     free_text: { prompt: 'Describe your approach...', expectedSignals: [], redFlags: [], rubric: [] },
     crm_prioritization: { scenarioContext: '', taskPrompt: '', records: [], requiredExplanation: true, expectedTopRecordIds: [], scoringWeights: { topChoiceAccuracy: 0.35, rankingQuality: 0.30, explanationQuality: 0.25, riskAwareness: 0.10 } },

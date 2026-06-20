@@ -157,13 +157,133 @@ function FreeTextEditor({ config, onChange }: { config: any; onChange: (c: any) 
   );
 }
 
+// ─── Welcome / TTS Slides ─────────────────────────────────────────────────────
+const VOICES = ['ash', 'alloy', 'echo', 'fable', 'nova', 'shimmer', 'onyx'] as const;
+
+function WelcomeEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+  const c = config as any;
+  const set = (patch: any) => onChange({ ...c, ...patch });
+  const hasTts = !!(c.slides?.length || c.persona);
+  const [ttsMode, setTtsMode] = useState(hasTts);
+
+  function setPersona(patch: any) { set({ persona: { ...(c.persona ?? { name: '', voice: 'ash' }), ...patch } }); }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Section title="Modalità">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { setTtsMode(false); set({ persona: undefined, slides: undefined }); }}
+            className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${!ttsMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
+            Onboarding classico
+          </button>
+          <button type="button" onClick={() => { setTtsMode(true); if (!c.persona) setPersona({ name: '', title: '', voice: 'ash' }); }}
+            className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${ttsMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
+            Presentazione con audio (TTS)
+          </button>
+        </div>
+      </Section>
+
+      {!ttsMode && (
+        <Section title="Messaggio di benvenuto">
+          <Field label="Nome founder/manager"><Inp value={c.founderName ?? ''} onChange={v => set({ founderName: v })} placeholder="Marco Verdi" /></Field>
+          <Field label="Ruolo"><Inp value={c.founderRole ?? ''} onChange={v => set({ founderRole: v })} placeholder="CEO & Co-Founder" /></Field>
+          <Field label="Messaggio">
+            <Textarea value={c.founderMessage ?? ''} onChange={v => set({ founderMessage: v })} rows={4} placeholder="Ciao! Sono felice che tu stia esplorando questa opportunità..." />
+          </Field>
+        </Section>
+      )}
+
+      {ttsMode && (
+        <>
+          <Section title="Persona (relatore)">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Nome"><Inp value={c.persona?.name ?? ''} onChange={v => setPersona({ name: v })} placeholder="Marco Verdi" /></Field>
+              <Field label="Ruolo/Titolo"><Inp value={c.persona?.title ?? ''} onChange={v => setPersona({ title: v })} placeholder="CEO & Co-Founder" /></Field>
+              <Field label="Foto URL (opzionale)"><Inp value={c.persona?.photoUrl ?? ''} onChange={v => setPersona({ photoUrl: v })} placeholder="https://..." /></Field>
+              <Field label="Voce TTS">
+                <select value={c.persona?.voice ?? 'ash'} onChange={e => setPersona({ voice: e.target.value })}
+                  className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 bg-white transition">
+                  {VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </Field>
+            </div>
+            <Field label="Istruzioni voce (stile recitazione)">
+              <Textarea value={c.persona?.voiceInstructions ?? ''} onChange={v => setPersona({ voiceInstructions: v })} rows={2} placeholder="es. Parla con entusiasmo, tono diretto e caldo, ritmo moderato. Sei un founder appassionato." />
+            </Field>
+          </Section>
+
+          <Section title="Slide con audio">
+            <p className="text-[12px] text-ink-500 -mt-1 mb-3">
+              Ogni slide genera un audio TTS dal testo. L'HTML (opzionale) sostituisce il testo nella visualizzazione — utile per grassetto, link, elenchi.
+            </p>
+            <div className="flex flex-col gap-3">
+              {(c.slides ?? []).map((sl: any, i: number) => (
+                <div key={i} className="border border-ink-200 rounded-xl p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wide">Slide {i + 1}</span>
+                    <button type="button" onClick={() => set({ slides: c.slides.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
+                  </div>
+                  <Field label="Testo (per TTS e visualizzazione)">
+                    <Textarea value={sl.text ?? ''} rows={2} onChange={v => set({ slides: c.slides.map((x: any, j: number) => j === i ? { ...x, text: v } : x) })} placeholder="Ciao! Sono Marco, CEO di Acme. Sono felice di presentarti questa opportunità..." />
+                  </Field>
+                  <Field label="HTML (opzionale — sovrascrive il testo nella visualizzazione)">
+                    <Inp value={sl.html ?? ''} onChange={v => set({ slides: c.slides.map((x: any, j: number) => j === i ? { ...x, html: v || undefined } : x) })} placeholder="<b>Ciao!</b> Sono Marco..." />
+                  </Field>
+                </div>
+              ))}
+              <button type="button"
+                onClick={() => set({ slides: [...(c.slides ?? []), { text: '' }] })}
+                className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit">
+                <Plus size={12} /> Aggiungi slide
+              </button>
+            </div>
+          </Section>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── CRM Prioritization ───────────────────────────────────────────────────────
 function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
+  const isRich = !!(c.records?.[0]?.activities || c.records?.[0]?.sector || c.records?.[0]?.contactEmail);
+  const [richMode, setRichMode] = useState(isRich);
+
+  function updateRecord(i: number, patch: any) {
+    set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, ...patch } : x) });
+  }
 
   return (
     <div className="flex flex-col gap-4">
+      <Section title="Modalità">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setRichMode(false)}
+            className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${!richMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
+            CRM semplice
+          </button>
+          <button type="button" onClick={() => setRichMode(true)}
+            className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${richMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
+            CRM ricco (3 colonne)
+          </button>
+        </div>
+        {richMode && (
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <Field label="Limite di tempo (secondi)">
+              <input type="number" value={c.timeLimitSeconds ?? 900}
+                onChange={e => set({ timeLimitSeconds: Number(e.target.value) })}
+                className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+            </Field>
+            <Field label="Max lead da prioritizzare">
+              <input type="number" value={c.maxRankedItems ?? 5}
+                onChange={e => set({ maxRankedItems: Number(e.target.value) })}
+                className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+            </Field>
+          </div>
+        )}
+      </Section>
+
       <Section title="Contesto scenario">
         <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sei un AE, è lunedì mattina...)" rows={3} />
         <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Istruzione per il candidato (es. Prioritizza questi account...)" rows={2} />
@@ -190,21 +310,62 @@ function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => vo
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Nome contatto"><Inp value={r.displayName ?? ''} onChange={v => set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, displayName: v } : x) })} placeholder="Mario Rossi" /></Field>
-                <Field label="Azienda"><Inp value={r.company ?? ''} onChange={v => set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, company: v } : x) })} placeholder="Acme Srl" /></Field>
-                <Field label="Valore (€)"><Inp type="number" value={String(r.value ?? '')} onChange={v => set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, value: Number(v) } : x) })} placeholder="50000" /></Field>
-                <Field label="Stage CRM"><Inp value={r.stage ?? ''} onChange={v => set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, stage: v } : x) })} placeholder="Negotiation" /></Field>
+                <Field label="Nome contatto"><Inp value={r.displayName ?? ''} onChange={v => updateRecord(i, { displayName: v })} placeholder="Mario Rossi" /></Field>
+                <Field label="Azienda"><Inp value={r.company ?? ''} onChange={v => updateRecord(i, { company: v })} placeholder="Acme Srl" /></Field>
+                {!richMode && <>
+                  <Field label="Valore (€)"><Inp type="number" value={String(r.value ?? '')} onChange={v => updateRecord(i, { value: Number(v) })} placeholder="50000" /></Field>
+                  <Field label="Stage CRM"><Inp value={r.stage ?? ''} onChange={v => updateRecord(i, { stage: v })} placeholder="Negotiation" /></Field>
+                </>}
               </div>
-              <Field label="Segnali visibili">
-                <ListInput label="" items={r.visibleSignals ?? []} onChange={vs => set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, visibleSignals: vs } : x) })} placeholder="es. Rinnovo urgente" />
-              </Field>
+              {richMode && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Ruolo contatto"><Inp value={r.contactRole ?? ''} onChange={v => updateRecord(i, { contactRole: v })} placeholder="Head of Sales" /></Field>
+                  <Field label="Email contatto"><Inp value={r.contactEmail ?? ''} onChange={v => updateRecord(i, { contactEmail: v })} placeholder="mario@acme.com" /></Field>
+                  <Field label="Telefono"><Inp value={r.contactPhone ?? ''} onChange={v => updateRecord(i, { contactPhone: v })} placeholder="+39 02 1234567" /></Field>
+                  <Field label="Settore"><Inp value={r.sector ?? ''} onChange={v => updateRecord(i, { sector: v })} placeholder="SaaS B2B" /></Field>
+                  <Field label="Dipendenti"><Inp value={String(r.employees ?? '')} onChange={v => updateRecord(i, { employees: v })} placeholder="50-200" /></Field>
+                  <Field label="Fatturato"><Inp value={r.revenue ?? ''} onChange={v => updateRecord(i, { revenue: v })} placeholder="€5M ARR" /></Field>
+                  <Field label="Sede"><Inp value={r.location ?? ''} onChange={v => updateRecord(i, { location: v })} placeholder="Milano, Italia" /></Field>
+                  <Field label="Sito"><Inp value={r.website ?? ''} onChange={v => updateRecord(i, { website: v })} placeholder="acme.com" /></Field>
+                  <Field label="Fonte (tipo)"><Inp value={r.source?.type ?? ''} onChange={v => updateRecord(i, { source: { ...(r.source ?? {}), type: v } })} placeholder="Inbound form" /></Field>
+                  <Field label="Fonte (emoji/icona)"><Inp value={r.source?.icon ?? ''} onChange={v => updateRecord(i, { source: { ...(r.source ?? {}), icon: v } })} placeholder="📋" /></Field>
+                  <Field label="Segnale">
+                    <select value={r.signalStrength ?? ''} onChange={e => updateRecord(i, { signalStrength: e.target.value || undefined })}
+                      className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition">
+                      <option value="">—</option>
+                      <option value="alto">Alto</option>
+                      <option value="medio">Medio</option>
+                      <option value="basso">Basso</option>
+                    </select>
+                  </Field>
+                  <Field label="Colore avatar (CSS gradient)"><Inp value={r.avatarColor ?? ''} onChange={v => updateRecord(i, { avatarColor: v })} placeholder="linear-gradient(135deg,#6366f1,#7c3aed)" /></Field>
+                </div>
+              )}
+              {richMode && (
+                <div className="flex flex-col gap-2">
+                  <Field label="Attività (una per riga: emoji|testo|data)">
+                    <Textarea value={(r.activities ?? []).map((a: any) => `${a.icon}|${a.text}|${a.date}`).join('\n')} rows={3}
+                      onChange={v => updateRecord(i, { activities: v.split('\n').filter(Boolean).map(line => { const [icon, ...rest] = line.split('|'); const date = rest.pop() ?? ''; const text = rest.join('|'); return { icon: icon.trim(), text: text.trim(), date: date.trim() }; }) })}
+                      placeholder={"🔥|Ha visitato la pricing page 3 volte|2 giorni fa\n📞|Demo richiesta via form|Ieri"} />
+                  </Field>
+                  <Field label="Nota form (citazione diretta del lead)">
+                    <Inp value={r.formNote ?? ''} onChange={v => updateRecord(i, { formNote: v })} placeholder={'"Cerchiamo qualcosa di più strutturato del nostro tool attuale"'} />
+                  </Field>
+                  <ListInput label="Informazioni mancanti" items={r.missingInfo ?? []} onChange={vs => updateRecord(i, { missingInfo: vs })} placeholder="es. Budget non definito" />
+                </div>
+              )}
+              {!richMode && (
+                <Field label="Segnali visibili">
+                  <ListInput label="" items={r.visibleSignals ?? []} onChange={vs => updateRecord(i, { visibleSignals: vs })} placeholder="es. Rinnovo urgente" />
+                </Field>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Priority score (0-100) 🔒">
                   <input type="number" min={0} max={100} value={r.hiddenPriorityScore ?? 50}
-                    onChange={e => set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, hiddenPriorityScore: Number(e.target.value) } : x) })}
+                    onChange={e => updateRecord(i, { hiddenPriorityScore: Number(e.target.value) })}
                     className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
                 </Field>
-                <Field label="Razionale nascosto 🔒"><Inp value={r.hiddenRationale ?? ''} onChange={v => set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, hiddenRationale: v } : x) })} placeholder="Perché questo score" /></Field>
+                <Field label="Razionale nascosto 🔒"><Inp value={r.hiddenRationale ?? ''} onChange={v => updateRecord(i, { hiddenRationale: v })} placeholder="Perché questo score" /></Field>
               </div>
             </div>
           ))}
@@ -220,69 +381,198 @@ function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => vo
 }
 
 // ─── Notification Reaction ────────────────────────────────────────────────────
-const CHANNELS = ['slack', 'email', 'sms', 'system_alert', 'crm_alert'] as const;
+const NOTIF_CHANNELS = ['slack', 'email', 'sms', 'system_alert', 'crm_alert'] as const;
 const ACTIONS = ['reply', 'ignore', 'escalate', 'schedule_followup', 'create_task', 'ask_clarification'];
 
 function NotificationEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
+  const isSlack = !!c.workspace;
+  const [slackMode, setSlackMode] = useState(isSlack);
+
+  function updateMember(i: number, patch: any) {
+    set({ teamMembers: (c.teamMembers ?? []).map((x: any, j: number) => j === i ? { ...x, ...patch } : x) });
+  }
+  function updateChannel(i: number, patch: any) {
+    set({ channels: (c.channels ?? []).map((x: any, j: number) => j === i ? { ...x, ...patch } : x) });
+  }
+  function updateSeq(i: number, patch: any) {
+    set({ welcomeSequence: (c.welcomeSequence ?? []).map((x: any, j: number) => j === i ? { ...x, ...patch } : x) });
+  }
 
   return (
     <div className="flex flex-col gap-4">
+      <Section title="Modalità">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { setSlackMode(false); set({ workspace: undefined, channels: undefined, teamMembers: undefined, welcomeSequence: undefined }); }}
+            className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${!slackMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
+            Notifiche classiche
+          </button>
+          <button type="button" onClick={() => { setSlackMode(true); if (!c.workspace) set({ workspace: { name: 'Workspace' }, channels: [{ id: 'welcome', name: 'welcome', topic: '' }], teamMembers: [], welcomeSequence: [] }); }}
+            className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${slackMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
+            Simil-Slack workspace
+          </button>
+        </div>
+      </Section>
+
       <Section title="Contesto scenario">
         <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sono le 9:00 di martedì...)" rows={3} />
         <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Cosa deve fare il candidato" rows={2} />
       </Section>
 
-      <Section title="Notifiche">
-        <div className="flex flex-col gap-4">
-          {(c.notifications ?? []).map((n: any, i: number) => (
-            <div key={n.id} className="border border-ink-200 rounded-xl p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wide">Notifica {i + 1}</span>
-                <button type="button" onClick={() => set({ notifications: c.notifications.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Mittente"><Inp value={n.senderName ?? ''} onChange={v => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, senderName: v } : x) })} placeholder="Mario Rossi" /></Field>
-                <Field label="Ruolo"><Inp value={n.senderRole ?? ''} onChange={v => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, senderRole: v } : x) })} placeholder="VP Sales" /></Field>
-                <Field label="Canale">
-                  <select value={n.channel ?? 'slack'} onChange={e => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, channel: e.target.value } : x) })}
-                    className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand bg-white transition">
-                    {CHANNELS.map(ch => <option key={ch} value={ch}>{ch}</option>)}
-                  </select>
-                </Field>
-                <Field label="Urgenza nascosta 🔒 (0-100)">
-                  <input type="number" min={0} max={100} value={n.hiddenUrgency ?? 50}
-                    onChange={e => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, hiddenUrgency: Number(e.target.value) } : x) })}
-                    className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
-                </Field>
-              </div>
-              <Field label="Messaggio">
-                <Textarea value={n.message ?? ''} onChange={v => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, message: v } : x) })} rows={2} placeholder="Testo della notifica..." />
-              </Field>
-              <Field label="Azioni attese 🔒">
-                <div className="flex flex-wrap gap-1.5">
-                  {ACTIONS.map(a => (
-                    <button key={a} type="button"
-                      onClick={() => {
-                        const acts: string[] = n.expectedActionTypes ?? [];
-                        set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, expectedActionTypes: acts.includes(a) ? acts.filter((act: string) => act !== a) : [...acts, a] } : x) });
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${(n.expectedActionTypes ?? []).includes(a) ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
-                      {a}
-                    </button>
-                  ))}
+      {!slackMode && (
+        <Section title="Notifiche">
+          <div className="flex flex-col gap-4">
+            {(c.notifications ?? []).map((n: any, i: number) => (
+              <div key={n.id} className="border border-ink-200 rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wide">Notifica {i + 1}</span>
+                  <button type="button" onClick={() => set({ notifications: c.notifications.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Mittente"><Inp value={n.senderName ?? ''} onChange={v => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, senderName: v } : x) })} placeholder="Mario Rossi" /></Field>
+                  <Field label="Ruolo"><Inp value={n.senderRole ?? ''} onChange={v => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, senderRole: v } : x) })} placeholder="VP Sales" /></Field>
+                  <Field label="Canale">
+                    <select value={n.channel ?? 'slack'} onChange={e => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, channel: e.target.value } : x) })}
+                      className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand bg-white transition">
+                      {NOTIF_CHANNELS.map(ch => <option key={ch} value={ch}>{ch}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Urgenza nascosta 🔒 (0-100)">
+                    <input type="number" min={0} max={100} value={n.hiddenUrgency ?? 50}
+                      onChange={e => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, hiddenUrgency: Number(e.target.value) } : x) })}
+                      className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                  </Field>
+                </div>
+                <Field label="Messaggio">
+                  <Textarea value={n.message ?? ''} onChange={v => set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, message: v } : x) })} rows={2} placeholder="Testo della notifica..." />
+                </Field>
+                <Field label="Azioni attese 🔒">
+                  <div className="flex flex-wrap gap-1.5">
+                    {ACTIONS.map(a => (
+                      <button key={a} type="button"
+                        onClick={() => {
+                          const acts: string[] = n.expectedActionTypes ?? [];
+                          set({ notifications: c.notifications.map((x: any, j: number) => j === i ? { ...x, expectedActionTypes: acts.includes(a) ? acts.filter((act: string) => act !== a) : [...acts, a] } : x) });
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${(n.expectedActionTypes ?? []).includes(a) ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+            ))}
+            <button type="button"
+              onClick={() => set({ notifications: [...(c.notifications ?? []), { id: uid(), senderName: '', senderRole: '', channel: 'slack', timestampOffsetMinutes: 0, message: '', hiddenUrgency: 50, hiddenImportance: 50, expectedActionTypes: [], hiddenRationale: '' }] })}
+              className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit">
+              <Plus size={12} /> Aggiungi notifica
+            </button>
+          </div>
+        </Section>
+      )}
+
+      {slackMode && (
+        <>
+          <Section title="Workspace">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Nome workspace"><Inp value={c.workspace?.name ?? ''} onChange={v => set({ workspace: { ...(c.workspace ?? {}), name: v } })} placeholder="Acme HQ" /></Field>
+              <Field label="Max risposte AI per canale">
+                <input type="number" min={1} max={10} value={c.maxRepliesPerChannel ?? 3}
+                  onChange={e => set({ maxRepliesPerChannel: Number(e.target.value) })}
+                  className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
               </Field>
             </div>
-          ))}
-          <button type="button"
-            onClick={() => set({ notifications: [...(c.notifications ?? []), { id: uid(), senderName: '', senderRole: '', channel: 'slack', timestampOffsetMinutes: 0, message: '', hiddenUrgency: 50, hiddenImportance: 50, expectedActionTypes: [], hiddenRationale: '' }] })}
-            className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit">
-            <Plus size={12} /> Aggiungi notifica
-          </button>
-        </div>
-      </Section>
+            <Field label="Etichetta CTA (prossimo step)"><Inp value={c.ctaLabel ?? ''} onChange={v => set({ ctaLabel: v })} placeholder="Ora ti aspetta il tuo primo task: prioritizza i lead inbound." /></Field>
+          </Section>
+
+          <Section title="Canali">
+            <div className="flex flex-col gap-2">
+              {(c.channels ?? []).map((ch: any, i: number) => (
+                <div key={ch.id} className="flex gap-2 items-end">
+                  <Field label={i === 0 ? 'ID' : ''}><Inp value={ch.id ?? ''} onChange={v => updateChannel(i, { id: v })} placeholder="welcome" /></Field>
+                  <Field label={i === 0 ? 'Nome' : ''}><Inp value={ch.name ?? ''} onChange={v => updateChannel(i, { name: v })} placeholder="welcome" /></Field>
+                  <Field label={i === 0 ? 'Topic' : ''}><Inp value={ch.topic ?? ''} onChange={v => updateChannel(i, { topic: v })} placeholder="Benvenuto nel team!" /></Field>
+                  <button type="button" onClick={() => set({ channels: c.channels.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1 pb-2"><Trash2 size={13} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => set({ channels: [...(c.channels ?? []), { id: uid(), name: '', topic: '' }] })}
+                className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit"><Plus size={12} /> Aggiungi canale</button>
+            </div>
+          </Section>
+
+          <Section title="Membri del team">
+            <div className="flex flex-col gap-4">
+              {(c.teamMembers ?? []).map((m: any, i: number) => (
+                <div key={m.id} className="border border-ink-200 rounded-xl p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wide">Membro {i + 1}</span>
+                    <button type="button" onClick={() => set({ teamMembers: c.teamMembers.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="ID (univoco)"><Inp value={m.id ?? ''} onChange={v => updateMember(i, { id: v })} placeholder="marco" /></Field>
+                    <Field label="Nome"><Inp value={m.name ?? ''} onChange={v => updateMember(i, { name: v })} placeholder="Marco Verdi" /></Field>
+                    <Field label="Iniziali"><Inp value={m.initials ?? ''} onChange={v => updateMember(i, { initials: v })} placeholder="MV" /></Field>
+                    <Field label="Colore (CSS gradient)"><Inp value={m.color ?? ''} onChange={v => updateMember(i, { color: v })} placeholder="linear-gradient(135deg,#10b981,#059669)" /></Field>
+                    <Field label="Ruolo"><Inp value={m.role ?? ''} onChange={v => updateMember(i, { role: v })} placeholder="Sales Manager" /></Field>
+                  </div>
+                  <Field label="Personalità AI 🔒">
+                    <Textarea value={m.aiPersonality ?? ''} rows={2} onChange={v => updateMember(i, { aiPersonality: v })} placeholder="es. Diretto, entusiasta, sempre positivo. Parla in italiano informale." />
+                  </Field>
+                  <Field label="Regole AI 🔒">
+                    <ListInput label="" items={m.aiRules ?? []} onChange={vs => updateMember(i, { aiRules: vs })} placeholder="es. Non rivelare informazioni sul competitor X" />
+                  </Field>
+                </div>
+              ))}
+              <button type="button" onClick={() => set({ teamMembers: [...(c.teamMembers ?? []), { id: uid(), name: '', initials: '', color: '', role: '', aiPersonality: '', aiRules: [] }] })}
+                className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit"><Plus size={12} /> Aggiungi membro</button>
+            </div>
+          </Section>
+
+          <Section title="Sequenza di benvenuto">
+            <p className="text-[12px] text-ink-500 -mt-1 mb-2">
+              I messaggi vengono inviati automaticamente all'apertura del workspace. Il candidato li legge prima di poter chattare.
+            </p>
+            <div className="flex flex-col gap-3">
+              {(c.welcomeSequence ?? []).map((msg: any, i: number) => (
+                <div key={i} className="border border-ink-200 rounded-xl p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wide">Messaggio {i + 1}</span>
+                    <button type="button" onClick={() => set({ welcomeSequence: c.welcomeSequence.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="ID membro">
+                      <select value={msg.memberId ?? ''} onChange={e => updateSeq(i, { memberId: e.target.value })}
+                        className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition">
+                        <option value="">Seleziona membro...</option>
+                        {(c.teamMembers ?? []).map((m: any) => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Canale">
+                      <select value={msg.channel ?? 'welcome'} onChange={e => updateSeq(i, { channel: e.target.value })}
+                        className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition">
+                        {(c.channels ?? []).map((ch: any) => <option key={ch.id} value={ch.id}>#{ch.name || ch.id}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Delay (ms prima del messaggio)">
+                      <input type="number" step={100} value={msg.delayMs ?? 1200} onChange={e => updateSeq(i, { delayMs: Number(e.target.value) })}
+                        className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                    </Field>
+                  </div>
+                  <Field label="Testo">
+                    <Textarea value={msg.text ?? ''} rows={2} onChange={v => updateSeq(i, { text: v })} placeholder="Ciao! Benvenuto nel team. Sono Marco, il tuo Sales Manager..." />
+                  </Field>
+                </div>
+              ))}
+              <button type="button"
+                onClick={() => set({ welcomeSequence: [...(c.welcomeSequence ?? []), { memberId: '', text: '', channel: c.channels?.[0]?.id ?? 'welcome', delayMs: 1200 }] })}
+                className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit">
+                <Plus size={12} /> Aggiungi messaggio
+              </button>
+            </div>
+          </Section>
+        </>
+      )}
     </div>
   );
 }
@@ -573,6 +863,7 @@ export function ConfigEditor({ type, config, onChange }: { type: string; config:
   switch (type) {
     case 'multiple_choice':       return <MultipleChoiceEditor config={config} onChange={onChange} />;
     case 'free_text':             return <FreeTextEditor config={config} onChange={onChange} />;
+    case 'welcome':               return <WelcomeEditor config={config} onChange={onChange} />;
     case 'crm_prioritization':    return <CrmEditor config={config} onChange={onChange} />;
     case 'notification_reaction': return <NotificationEditor config={config} onChange={onChange} />;
     case 'email_response':        return <EmailEditor config={config} onChange={onChange} />;
