@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Plus, X, GripVertical, ChevronRight, Zap, CheckCircle, Trash2, AlignLeft, List, Mail, Phone, LayoutGrid, Sparkles, Table2 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -132,6 +132,7 @@ function StepEditor({ step, simId, onSave, errors = [] }: { step: Step; simId: s
   const [saved, setSaved] = useState(false);
   const [aiFilling, setAiFilling] = useState(false);
   const [aiError, setAiError] = useState('');
+  const localErrors = useMemo(() => validateStepConfig(step.type, config), [step.type, config]);
 
   useEffect(() => {
     setForm({ title: step.title, instructions: step.instructions });
@@ -222,7 +223,7 @@ function StepEditor({ step, simId, onSave, errors = [] }: { step: Step; simId: s
             <span className="text-[11px] font-bold text-ink-400 uppercase tracking-widest">Configurazione step</span>
             <div className="h-px flex-1 bg-ink-100" />
           </div>
-          <ConfigEditor type={step.type} config={config} onChange={setConfig} errors={errors} />
+          <ConfigEditor type={step.type} config={config} onChange={setConfig} errors={localErrors} />
         </div>
       </div>
 
