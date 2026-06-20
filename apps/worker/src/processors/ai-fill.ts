@@ -19,8 +19,20 @@ const SCHEMAS: Record<string, string> = {
   simulated_call: `{"callType":"sales_discovery","title":"Discovery call with prospect","publicCandidateBrief":"You are an AE at [company]. You have a discovery call with [prospect name], [role] at [company]. Background: [context].","estimatedDurationSeconds":600,"maxDurationSeconds":720,"aiPersona":{"name":"Alex Martinez","role":"Head of Operations","company":"Acme Corp","personality":"Analytical and data-driven. Asks pointed questions. Values ROI clarity.","communicationStyle":"Direct and concise. Gets to the point quickly. Impatient with vague answers.","baselineMood":"skeptical"},"publicBusinessContext":{"candidateCompany":"YourSaaS","productOrService":"B2B SaaS platform","valueProposition":"Reduces operational overhead by 40%","knownContext":["They have 200 employees","They use legacy software"]},"hiddenBuyerState":{"initialInterestLevel":40,"initialTrustLevel":30,"initialUrgencyLevel":25,"hiddenObjections":[{"id":"obj1","type":"budget","description":"Budget is frozen until Q3","revealCondition":"When candidate asks about budget timeline","resolutionCondition":"Candidate acknowledges timing and proposes phased approach","severity":"high"},{"id":"obj2","type":"trust","description":"Bad experience with similar vendor","revealCondition":"When candidate asks about past attempts to solve this","resolutionCondition":"Candidate demonstrates differentiators with evidence","severity":"medium"}],"buyingCriteria":[{"id":"c1","criterion":"Clear ROI within 6 months","importance":"critical"},{"id":"c2","criterion":"Minimal implementation disruption","importance":"high"},{"id":"c3","criterion":"Dedicated support","importance":"medium"}],"dealBreakers":["Requires more than 3 months to implement","No case studies in their industry"]},"allowedOutcomes":["schedule_follow_up","schedule_demo","send_information"],"guardrails":{"doNotRevealHiddenObjectionsDirectly":true,"requireCandidateDiscoveryBeforeRevealingObjections":true,"preventEasyAgreement":true,"stayInPersona":true,"refuseOutOfScenarioRequests":true},"scoringRubric":[{"key":"discovery","label":"Discovery quality","maxScore":30,"description":"Did the candidate ask good open-ended questions to uncover needs?"},{"key":"objection_handling","label":"Objection handling","maxScore":30,"description":"Did the candidate handle objections with empathy and evidence?"},{"key":"value_articulation","label":"Value articulation","maxScore":20,"description":"Did the candidate connect the product to the prospect's specific needs?"},{"key":"next_steps","label":"Next steps","maxScore":20,"description":"Did the candidate secure a clear, concrete next step?"}]}`,
 };
 
-function buildPrompt(type: string, title: string, instructions: string, jobTitle?: string, jobDescription?: string): string {
-  const ctx = `Role: ${jobTitle || 'Sales professional'}\nJob description: ${(jobDescription || '').slice(0, 600)}\nStep title: ${title}\nStep instructions: ${instructions}`.trim();
+function buildPrompt(type: string, title: string, instructions: string, jobTitle?: string, jobDescription?: string, orgName?: string): string {
+  const candidateCompany = orgName || 'Azienda';
+  const ctx = [
+    `Azienda che assume (il candidato lavora QUI): ${candidateCompany}`,
+    `Ruolo: ${jobTitle || 'Sales professional'}`,
+    `Descrizione del ruolo: ${(jobDescription || '').slice(0, 600)}`,
+    `Titolo dello step: ${title}`,
+    `Istruzioni dello step: ${instructions}`,
+  ].join('\n').trim();
+
+  const extraRules = type === 'simulated_call' ? `
+- In "publicCandidateBrief": usa "${candidateCompany}" come azienda del candidato, usa ESATTAMENTE lo stesso nome e azienda del prospect che hai definito in "aiPersona" (non usare placeholder come [nome] o [azienda]), e crea un contesto fittizio ma realistico e coerente con il settore
+- Assicurati che publicCandidateBrief, aiPersona e publicBusinessContext siano completamente coerenti tra loro (stessi nomi, stessa azienda del prospect, stesso prodotto/servizio)` : '';
+
   return `You are an expert at designing realistic job simulation assessments.
 
 CONTEXT:
@@ -32,11 +44,11 @@ Output ONLY a valid JSON object matching this structure exactly:
 ${SCHEMAS[type] ?? '{}'}
 
 Rules:
-- ALL text fields (questions, messages, prompts, labels, names, descriptions, rationale, etc.) MUST be written in Italian
-- Make names, companies, numbers, and scenarios specific and realistic (not generic placeholders)
+- ALL text fields MUST be written in Italian
+- Make names, companies, numbers, and scenarios specific and realistic — NO generic placeholders
 - Make the scenario genuinely challenging for the target role
 - For hidden fields (hiddenRationale, hiddenUrgency, etc.), be specific about WHY
-- Adapt the difficulty to a professional-level candidate for this role
+- Adapt the difficulty to a professional-level candidate for this role${extraRules}
 - Output ONLY the JSON, no explanation`;
 }
 
@@ -47,13 +59,16 @@ export async function processAiFillJob(job: Job) {
   const step = await prisma.simulationStep.findFirst({ where: { id: stepId, organizationId } });
   if (!step) throw new Error(`Step ${stepId} not found`);
 
-  const sim = await prisma.simulation.findFirst({
-    where: { id: simulationId, organizationId },
-    include: { jobPosting: { select: { title: true, description: true } } },
-  });
+  const [sim, org] = await Promise.all([
+    prisma.simulation.findFirst({
+      where: { id: simulationId, organizationId },
+      include: { jobPosting: { select: { title: true, description: true } } },
+    }),
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+  ]);
   const jobPost = (sim as any)?.jobPosting;
 
-  const prompt = buildPrompt(step.type, step.title, step.instructions ?? '', jobPost?.title, jobPost?.description);
+  const prompt = buildPrompt(step.type, step.title, step.instructions ?? '', jobPost?.title, jobPost?.description, org?.name);
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
