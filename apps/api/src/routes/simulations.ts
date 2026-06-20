@@ -111,13 +111,22 @@ router.post('/:simulationId/steps/:stepId/ai-fill', async (req: AuthRequest, res
   const prompt = buildAiFillPrompt(step.type, step.title, step.instructions ?? '', job?.title, job?.description);
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    // Stream from OpenAI to keep the TCP connection alive on Railway's network.
+    // Without streaming, Railway drops idle long-running connections before GPT-4o finishes.
+    const stream = await openai.chat.completions.create({
+      model: 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.7,
+      stream: true,
     });
-    const config = JSON.parse(completion.choices[0]?.message?.content ?? '{}');
+
+    let content = '';
+    for await (const chunk of stream) {
+      content += chunk.choices[0]?.delta?.content ?? '';
+    }
+
+    const config = JSON.parse(content || '{}');
     await prisma.simulationStep.updateMany({ where: { id: step.id, organizationId: req.organizationId }, data: { config } });
     res.json({ config });
   } catch (err: any) {
