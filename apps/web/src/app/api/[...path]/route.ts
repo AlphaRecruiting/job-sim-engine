@@ -17,12 +17,17 @@ async function handler(req: NextRequest) {
     method: req.method,
     headers,
     body: body ? Buffer.from(body) : undefined,
+    redirect: 'manual', // pass 3xx through to the browser instead of following them
   });
 
   const resHeaders = new Headers();
   res.headers.forEach((v, k) => {
     if (k !== 'content-encoding' && k !== 'transfer-encoding') resHeaders.set(k, v);
   });
+
+  if (res.status >= 300 && res.status < 400) {
+    return new NextResponse(null, { status: res.status, headers: resHeaders });
+  }
 
   const data = await res.arrayBuffer();
   return new NextResponse(data, { status: res.status, headers: resHeaders });
