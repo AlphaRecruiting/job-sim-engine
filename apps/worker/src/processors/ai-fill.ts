@@ -32,6 +32,7 @@ Output ONLY a valid JSON object matching this structure exactly:
 ${SCHEMAS[type] ?? '{}'}
 
 Rules:
+- ALL text fields (questions, messages, prompts, labels, names, descriptions, rationale, etc.) MUST be written in Italian
 - Make names, companies, numbers, and scenarios specific and realistic (not generic placeholders)
 - Make the scenario genuinely challenging for the target role
 - For hidden fields (hiddenRationale, hiddenUrgency, etc.), be specific about WHY
