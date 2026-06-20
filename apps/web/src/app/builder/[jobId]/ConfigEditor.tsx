@@ -126,19 +126,25 @@ function FreeTextEditor({ config, onChange }: { config: any; onChange: (c: any) 
         <ListInput label="" items={c.redFlags ?? []} onChange={v => set({ redFlags: v })} placeholder="es. risposta generica senza dati" />
       </Section>
 
-      <Section title="Rubrica di valutazione" defaultOpen={false}>
+      <Section title="Come l'AI valuterà la risposta" defaultOpen={false}>
+        <p className="text-[12px] text-ink-500 -mt-1 mb-2">
+          Definisci i criteri con cui l'AI assegnerà il punteggio. Ogni criterio ha un nome, un punteggio massimo e una descrizione di cosa viene valutato. Il candidato non vede questi criteri.
+        </p>
         <div className="flex flex-col gap-3">
           {(c.rubric ?? []).map((r, i) => (
             <div key={r.key} className="border border-ink-200 rounded-lg p-3 flex flex-col gap-2">
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <input value={r.label} onChange={e => set({ rubric: c.rubric.map((x, j) => j === i ? { ...x, label: e.target.value } : x) })}
-                  placeholder="Criterio" className="flex-1 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
-                <input type="number" value={r.maxScore} onChange={e => set({ rubric: c.rubric.map((x, j) => j === i ? { ...x, maxScore: Number(e.target.value) } : x) })}
-                  className="w-20 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="Punti" />
+                  placeholder="Nome criterio (es. Tono professionale)" className="flex-1 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                <div className="flex items-center gap-1 shrink-0">
+                  <input type="number" value={r.maxScore} onChange={e => set({ rubric: c.rubric.map((x, j) => j === i ? { ...x, maxScore: Number(e.target.value) } : x) })}
+                    className="w-16 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" placeholder="25" />
+                  <span className="text-[12px] text-ink-400">pt</span>
+                </div>
                 <button type="button" onClick={() => set({ rubric: c.rubric.filter((_, j) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
               </div>
               <input value={r.description} onChange={e => set({ rubric: c.rubric.map((x, j) => j === i ? { ...x, description: e.target.value } : x) })}
-                placeholder="Descrizione del criterio" className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                placeholder="Cosa valuta questo criterio? (es. La risposta riconosce il problema del cliente?)" className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
             </div>
           ))}
           <button type="button" onClick={() => set({ rubric: [...(c.rubric ?? []), { key: uid(), label: '', maxScore: 25, description: '' }] })}
@@ -323,17 +329,25 @@ function EmailEditor({ config, onChange }: { config: any; onChange: (c: any) => 
         <ListInput label="Red flag" items={c.redFlags ?? []} onChange={v => set({ redFlags: v })} placeholder="es. Non si scusa per il disagio" />
       </Section>
 
-      <Section title="Rubrica" defaultOpen={false}>
+      <Section title="Come l'AI valuterà la risposta email" defaultOpen={false}>
+        <p className="text-[12px] text-ink-500 -mt-1 mb-2">
+          Definisci i criteri con cui l'AI assegnerà il punteggio alla risposta. Il candidato non vede questi criteri — li usa solo l'AI per valutare.
+        </p>
         <div className="flex flex-col gap-3">
           {(c.rubric ?? []).map((r: any, i: number) => (
             <div key={r.key} className="border border-ink-200 rounded-lg p-3 flex flex-col gap-2">
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <input value={r.label} onChange={e => set({ rubric: c.rubric.map((x: any, j: number) => j === i ? { ...x, label: e.target.value } : x) })}
-                  placeholder="Criterio" className="flex-1 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 transition" />
-                <input type="number" value={r.maxScore} onChange={e => set({ rubric: c.rubric.map((x: any, j: number) => j === i ? { ...x, maxScore: Number(e.target.value) } : x) })}
-                  className="w-20 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 transition" placeholder="Punti" />
+                  placeholder="Nome criterio (es. Tono professionale)" className="flex-1 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 transition" />
+                <div className="flex items-center gap-1 shrink-0">
+                  <input type="number" value={r.maxScore} onChange={e => set({ rubric: c.rubric.map((x: any, j: number) => j === i ? { ...x, maxScore: Number(e.target.value) } : x) })}
+                    className="w-16 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 transition" placeholder="25" />
+                  <span className="text-[12px] text-ink-400">pt</span>
+                </div>
                 <button type="button" onClick={() => set({ rubric: c.rubric.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
               </div>
+              <input value={r.description ?? ''} onChange={e => set({ rubric: c.rubric.map((x: any, j: number) => j === i ? { ...x, description: e.target.value } : x) })}
+                placeholder="Cosa valuta? (es. La risposta riconosce il problema e propone una soluzione?)" className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 transition" />
             </div>
           ))}
           <button type="button" onClick={() => set({ rubric: [...(c.rubric ?? []), { key: uid(), label: '', maxScore: 25, description: '' }] })}
