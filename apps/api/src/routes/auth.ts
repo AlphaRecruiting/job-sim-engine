@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { AuthRequest, requireAuth } from '../middleware/auth';
+import { getGoogleAuthUrl, exchangeCodeForUser } from '../lib/google-oauth';
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required');
@@ -83,6 +84,73 @@ router.get('/organizations/current', requireAuth, async (req: AuthRequest, res) 
   const org = await prisma.organization.findUnique({ where: { id: req.organizationId } });
   if (!org) { res.status(404).json({ error: 'Not found' }); return; }
   res.json(org);
+});
+
+// Google OAuth — shared callback for company and candidate (type encoded in state)
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_OAUTH_CALLBACK_URL ?? '';
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+
+router.get('/auth/google', (req, res) => {
+  const type = req.query.type === 'candidate' ? 'candidate' : 'company';
+  const rawRedirect = (req.query.redirect as string) ?? (type === 'candidate' ? '/candidate/profile' : '/admin/jobs');
+  const state = Buffer.from(JSON.stringify({ type, redirect: rawRedirect })).toString('base64url');
+  res.redirect(getGoogleAuthUrl(GOOGLE_CALLBACK_URL, state));
+});
+
+router.get('/auth/google/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query as Record<string, string>;
+    if (!code || !state) { res.status(400).send('Missing code or state'); return; }
+
+    let decoded: { type: string; redirect: string };
+    try {
+      decoded = JSON.parse(Buffer.from(state, 'base64url').toString());
+    } catch {
+      res.status(400).send('Invalid state'); return;
+    }
+
+    const googleUser = await exchangeCodeForUser(code, GOOGLE_CALLBACK_URL);
+    const safeRedirect = decoded.redirect?.startsWith('/') && !decoded.redirect.startsWith('//') ? decoded.redirect : '/';
+
+    if (decoded.type === 'candidate') {
+      // Find or create CandidateProfile
+      let profile = await prisma.candidateProfile.findFirst({
+        where: { OR: [{ googleId: googleUser.id }, { email: googleUser.email }] },
+      });
+      if (!profile) {
+        profile = await prisma.candidateProfile.create({
+          data: { email: googleUser.email, name: googleUser.name, googleId: googleUser.id },
+        });
+      } else if (!profile.googleId) {
+        profile = await prisma.candidateProfile.update({ where: { id: profile.id }, data: { googleId: googleUser.id } });
+      }
+      const token = jwt.sign({ candidateProfileId: profile.id, email: profile.email, type: 'candidate' }, jwtSecret, { expiresIn: '24h' });
+      const { passwordHash: _ph, cvData: _cv, ...safeProfile } = profile as any;
+      const params = new URLSearchParams({ token, type: 'candidate', profile: JSON.stringify({ ...safeProfile, hasCv: !!_cv }), redirect: safeRedirect });
+      res.redirect(`${APP_URL}/auth/callback?${params}`);
+      return;
+    }
+
+    // Company user — don't auto-create
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ googleId: googleUser.id }, { email: googleUser.email }] },
+    });
+    if (!user) {
+      const params = new URLSearchParams({ error: 'no_account', redirect: safeRedirect });
+      res.redirect(`${APP_URL}/company/login?${params}`);
+      return;
+    }
+    if (!user.googleId) {
+      await prisma.user.update({ where: { id: user.id }, data: { googleId: googleUser.id } });
+    }
+    const token = jwt.sign({ userId: user.id, organizationId: user.organizationId, role: user.role }, jwtSecret, { expiresIn: '24h' });
+    const safeUser = { id: user.id, email: user.email, name: user.name, role: user.role };
+    const params = new URLSearchParams({ token, type: 'company', user: JSON.stringify(safeUser), redirect: safeRedirect });
+    res.redirect(`${APP_URL}/auth/callback?${params}`);
+  } catch (err: any) {
+    console.error('[auth/google/callback]', err?.message ?? err);
+    res.status(500).send('OAuth error');
+  }
 });
 
 export default router;

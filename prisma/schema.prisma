@@ -43,6 +43,7 @@ model User {
   name           String?
   role           String   // owner | admin | recruiter | hiring_manager | reviewer | viewer
   passwordHash   String?
+  googleId       String?  @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -433,7 +434,8 @@ model RealtimeCallSession {
 model CandidateProfile {
   id           String   @id @default(uuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
+  googleId     String?  @unique
   name         String?
   phone        String?
   bio          String?

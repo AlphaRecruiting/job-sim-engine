@@ -68,7 +68,7 @@ router.post('/login', authRateLimiter, async (req, res) => {
   if (!email || !password) { res.status(400).json({ error: 'email and password required' }); return; }
 
   const profile = await prisma.candidateProfile.findUnique({ where: { email } });
-  if (!profile) { res.status(401).json({ error: 'Invalid email or password' }); return; }
+  if (!profile || !profile.passwordHash) { res.status(401).json({ error: 'Invalid email or password' }); return; }
 
   const valid = await bcrypt.compare(password, profile.passwordHash);
   if (!valid) { res.status(401).json({ error: 'Invalid email or password' }); return; }
