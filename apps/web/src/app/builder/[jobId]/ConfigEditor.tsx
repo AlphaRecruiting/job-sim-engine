@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 
 function uid() { return Math.random().toString(36).slice(2, 8); }
@@ -165,6 +165,7 @@ function WelcomeEditor({ config, onChange }: { config: any; onChange: (c: any) =
   const set = (patch: any) => onChange({ ...c, ...patch });
   const hasTts = !!(c.slides?.length || c.persona);
   const [ttsMode, setTtsMode] = useState(hasTts);
+  useEffect(() => { setTtsMode(!!(c.slides?.length || c.persona)); }, [!!c.slides?.length, !!c.persona]);
 
   function setPersona(patch: any) { set({ persona: { ...(c.persona ?? { name: '', voice: 'ash' }), ...patch } }); }
 
@@ -248,8 +249,9 @@ function WelcomeEditor({ config, onChange }: { config: any; onChange: (c: any) =
 function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
-  const isRich = !!(c.records?.[0]?.activities || c.records?.[0]?.sector || c.records?.[0]?.contactEmail);
+  const isRich = !!(c.records?.[0]?.activities || c.records?.[0]?.sector || c.records?.[0]?.contactEmail || c.timeLimitSeconds);
   const [richMode, setRichMode] = useState(isRich);
+  useEffect(() => { setRichMode(!!(c.records?.[0]?.activities || c.records?.[0]?.sector || c.records?.[0]?.contactEmail || c.timeLimitSeconds)); }, [c.timeLimitSeconds, c.records?.[0]?.activities, c.records?.[0]?.sector, c.records?.[0]?.contactEmail]);
 
   function updateRecord(i: number, patch: any) {
     set({ records: c.records.map((x: any, j: number) => j === i ? { ...x, ...patch } : x) });
@@ -259,11 +261,11 @@ function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => vo
     <div className="flex flex-col gap-4">
       <Section title="Modalità">
         <div className="flex gap-2">
-          <button type="button" onClick={() => setRichMode(false)}
+          <button type="button" onClick={() => { setRichMode(false); const { timeLimitSeconds, maxRankedItems, ...rest } = c; onChange(rest); }}
             className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${!richMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
             CRM semplice
           </button>
-          <button type="button" onClick={() => setRichMode(true)}
+          <button type="button" onClick={() => { setRichMode(true); set({ timeLimitSeconds: c.timeLimitSeconds ?? 900, maxRankedItems: c.maxRankedItems ?? 5 }); }}
             className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition ${richMode ? 'bg-brand text-white border-brand' : 'bg-white text-ink-600 border-ink-200 hover:border-ink-400'}`}>
             CRM ricco (3 colonne)
           </button>
@@ -389,6 +391,7 @@ function NotificationEditor({ config, onChange }: { config: any; onChange: (c: a
   const set = (patch: any) => onChange({ ...c, ...patch });
   const isSlack = !!c.workspace;
   const [slackMode, setSlackMode] = useState(isSlack);
+  useEffect(() => { setSlackMode(!!c.workspace); }, [!!c.workspace]);
 
   function updateMember(i: number, patch: any) {
     set({ teamMembers: (c.teamMembers ?? []).map((x: any, j: number) => j === i ? { ...x, ...patch } : x) });
