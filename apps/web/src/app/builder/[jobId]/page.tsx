@@ -60,7 +60,6 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
   const [form, setForm] = useState({
     title: step.title,
     instructions: step.instructions,
-    timeLimitSeconds: step.timeLimitSeconds != null ? String(step.timeLimitSeconds) : '',
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -69,7 +68,6 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
     setForm({
       title: step.title,
       instructions: step.instructions,
-      timeLimitSeconds: step.timeLimitSeconds != null ? String(step.timeLimitSeconds) : '',
     });
     setSaved(false);
   }, [step.id]);
@@ -77,11 +75,8 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
   async function save() {
     setSaving(true);
     try {
-      await api.patch(`/api/simulations/${simId}/steps/${step.id}`, {
-        ...form,
-        timeLimitSeconds: form.timeLimitSeconds ? Number(form.timeLimitSeconds) : null,
-      });
-      onSave({ ...step, ...form, timeLimitSeconds: form.timeLimitSeconds ? Number(form.timeLimitSeconds) : undefined });
+      await api.patch(`/api/simulations/${simId}/steps/${step.id}`, form);
+      onSave({ ...step, ...form });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
@@ -125,27 +120,6 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
           />
         </div>
 
-        <div className="max-w-xs">
-          <label className="block text-[13px] font-semibold text-ink-700 mb-2">
-            Limite di tempo
-            <span className="text-ink-400 font-normal ml-1">(secondi, opzionale)</span>
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              type="number"
-              value={form.timeLimitSeconds}
-              onChange={e => setForm(f => ({ ...f, timeLimitSeconds: e.target.value }))}
-              className="w-32 border border-ink-200 rounded-xl px-4 py-2.5 text-[14px] text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition"
-              placeholder="600"
-              min={0}
-            />
-            {form.timeLimitSeconds && (
-              <span className="text-[13px] text-ink-500">
-                = {Math.floor(Number(form.timeLimitSeconds) / 60)}m {Number(form.timeLimitSeconds) % 60}s
-              </span>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Footer */}
