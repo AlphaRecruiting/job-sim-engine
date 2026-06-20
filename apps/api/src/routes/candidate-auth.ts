@@ -4,8 +4,8 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 
 const router = Router();
-const SECRET = process.env.JWT_SECRET;
-if (!SECRET) throw new Error('JWT_SECRET environment variable is required');
+if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is required');
+const SECRET = process.env.JWT_SECRET as string;
 
 // Simple in-memory rate limiter: 10 requests per 15 minutes per IP
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
