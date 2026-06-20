@@ -52,6 +52,65 @@ const MODULE_COLORS: Record<string, string> = {
   spreadsheet_edit:      'bg-emerald-50 text-emerald-700',
 };
 
+function validateStepConfig(type: string, config: any): string[] {
+  const keys: string[] = [];
+  const miss = (key: string) => keys.push(key);
+  switch (type) {
+    case 'welcome': {
+      const hasTts = !!(config.slides?.length || config.persona);
+      if (!hasTts) {
+        if (!config.founderName?.trim()) miss('founderName');
+        if (!config.founderMessage?.trim()) miss('founderMessage');
+      } else {
+        if (!config.persona?.name?.trim()) miss('persona');
+        if (!config.slides?.length || config.slides.some((s: any) => !s.text?.trim())) miss('slides');
+      }
+      break;
+    }
+    case 'multiple_choice':
+      if (!config.question?.trim()) miss('question');
+      if (!config.options?.length || config.options.length < 2) miss('options');
+      else if (!config.options.some((o: any) => o.isCorrect)) miss('options_correct');
+      break;
+    case 'free_text':
+      if (!config.prompt?.trim()) miss('prompt');
+      break;
+    case 'crm_prioritization':
+      if (!config.scenarioContext?.trim()) miss('scenarioContext');
+      if (!config.taskPrompt?.trim()) miss('taskPrompt');
+      if (!config.records?.length) miss('records');
+      if (!config.expectedTopRecordIds?.length) miss('expectedTopRecordIds');
+      break;
+    case 'notification_reaction':
+      if (!config.scenarioContext?.trim()) miss('scenarioContext');
+      if (!config.taskPrompt?.trim()) miss('taskPrompt');
+      if (config.workspace) {
+        if (!config.workspace.name?.trim()) miss('workspace');
+        if (!config.teamMembers?.length) miss('teamMembers');
+        if (!config.welcomeSequence?.length) miss('welcomeSequence');
+      } else {
+        if (!config.notifications?.length) miss('notifications');
+      }
+      break;
+    case 'email_response':
+      if (!config.scenarioContext?.trim()) miss('scenarioContext');
+      if (!config.taskPrompt?.trim()) miss('taskPrompt');
+      if (!config.emailThread?.length) miss('emailThread');
+      break;
+    case 'simulated_call':
+      if (!config.publicCandidateBrief?.trim()) miss('publicCandidateBrief');
+      if (!config.aiPersona?.name?.trim()) miss('aiPersona');
+      break;
+    case 'spreadsheet_edit':
+      if (!config.scenarioContext?.trim()) miss('scenarioContext');
+      if (!config.taskPrompt?.trim()) miss('taskPrompt');
+      if (!config.templateSheetUrl?.trim() || config.templateSheetUrl === 'PLACEHOLDER_TEMPLATE_ID') miss('templateSheetUrl');
+      if (!config.cells?.length) miss('cells');
+      break;
+  }
+  return keys;
+}
+
 function getDefaultConfig(type: string): Record<string, unknown> {
   const defaults: Record<string, unknown> = {
     welcome: { founderName: '', founderRole: '', founderMessage: '', minReadSeconds: 15 },
@@ -66,7 +125,7 @@ function getDefaultConfig(type: string): Record<string, unknown> {
   return (defaults[type] ?? {}) as Record<string, unknown>;
 }
 
-function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave: (s: Step) => void }) {
+function StepEditor({ step, simId, onSave, errors = [] }: { step: Step; simId: string; onSave: (s: Step) => void; errors?: string[] }) {
   const [form, setForm] = useState({ title: step.title, instructions: step.instructions });
   const [config, setConfig] = useState<any>(step.config ?? {});
   const [saving, setSaving] = useState(false);
@@ -163,7 +222,7 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
             <span className="text-[11px] font-bold text-ink-400 uppercase tracking-widest">Configurazione step</span>
             <div className="h-px flex-1 bg-ink-100" />
           </div>
-          <ConfigEditor type={step.type} config={config} onChange={setConfig} />
+          <ConfigEditor type={step.type} config={config} onChange={setConfig} errors={errors} />
         </div>
       </div>
 
@@ -194,6 +253,7 @@ export default function SimulationBuilderPage() {
   const [published, setPublished]   = useState(false);
   const [creating, setCreating]     = useState(false);
   const [msg, setMsg]               = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  const [stepErrors, setStepErrors] = useState<Record<string, string[]>>({});
   const dragIndex = useRef<number | null>(null);
 
   // Auth check
@@ -256,6 +316,21 @@ export default function SimulationBuilderPage() {
 
   async function publish() {
     if (!sim) return;
+    // Client-side validation first
+    const allErrors: Record<string, string[]> = {};
+    for (const step of sortedSteps) {
+      const errs = validateStepConfig(step.type, step.config ?? {});
+      if (errs.length) allErrors[step.id] = errs;
+    }
+    if (Object.keys(allErrors).length > 0) {
+      setStepErrors(allErrors);
+      const firstBad = sortedSteps.find(s => allErrors[s.id]);
+      if (firstBad) setSelected(firstBad);
+      const count = Object.keys(allErrors).length;
+      setMsg({ tone: 'danger', text: `${count} step ${count === 1 ? 'ha' : 'hanno'} campi obbligatori mancanti — i campi in rosso devono essere compilati prima di pubblicare.` });
+      return;
+    }
+    setStepErrors({});
     setPublishing(true); setMsg(null);
     try {
       await api.post(`/api/simulations/${sim.id}/publish`);
@@ -387,6 +462,7 @@ export default function SimulationBuilderPage() {
               const isActive = selected?.id === step.id;
               const color = MODULE_COLORS[step.type] ?? 'bg-ink-100 text-ink-700';
               const icon = MODULE_ICONS[step.type];
+              const hasErrors = (stepErrors[step.id]?.length ?? 0) > 0;
               return (
                 <div
                   key={step.id}
@@ -395,7 +471,7 @@ export default function SimulationBuilderPage() {
                   onDragOver={e => e.preventDefault()}
                   onDrop={() => handleDrop(i)}
                   className={`group flex items-start gap-2 px-3 py-3 transition-colors cursor-default ${
-                    isActive ? 'bg-ink-100' : 'hover:bg-ink-50'
+                    isActive ? 'bg-ink-100' : hasErrors ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-ink-50'
                   }`}
                 >
                   <GripVertical size={14} className="text-ink-300 group-hover:text-ink-400 mt-0.5 shrink-0 cursor-grab active:cursor-grabbing" />
@@ -407,6 +483,7 @@ export default function SimulationBuilderPage() {
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] font-bold text-ink-400 shrink-0">{i + 1}</span>
                       <div className="text-[13px] font-semibold text-ink-900 truncate">{step.title}</div>
+                      {hasErrors && <span className="ml-auto shrink-0 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">!</span>}
                     </div>
                     <span className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-1 px-1.5 py-0.5 rounded ${color}`}>
                       {icon}
@@ -456,9 +533,11 @@ export default function SimulationBuilderPage() {
               key={selected.id}
               step={selected}
               simId={sim.id}
+              errors={stepErrors[selected.id] ?? []}
               onSave={updated => {
                 setSim(s => s ? { ...s, steps: s.steps.map(st => st.id === updated.id ? updated : st) } : s);
                 setSelected(updated);
+                setStepErrors(prev => { const n = { ...prev }; delete n[updated.id]; return n; });
               }}
             />
           ) : (

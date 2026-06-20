@@ -27,37 +27,40 @@ function ListInput({ label, items, onChange, placeholder }: { label: string; ite
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, error = false }: { label: string; children: React.ReactNode; error?: boolean }) {
   return (
     <div>
-      <label className="block text-[12px] font-semibold text-ink-500 uppercase tracking-wide mb-1.5">{label}</label>
+      <label className={`block text-[12px] font-semibold uppercase tracking-wide mb-1.5 ${error ? 'text-red-600' : 'text-ink-500'}`}>{label}{error && ' *'}</label>
       {children}
     </div>
   );
 }
 
-function Textarea({ value, onChange, placeholder, rows = 3 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
+function Textarea({ value, onChange, placeholder, rows = 3, error = false }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number; error?: boolean }) {
   return (
     <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
-      className="w-full border border-ink-200 rounded-lg px-3 py-2 text-[13px] text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition resize-y leading-relaxed" />
+      className={`w-full border rounded-lg px-3 py-2 text-[13px] text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 transition resize-y leading-relaxed ${error ? 'border-red-400 focus:ring-red-200 focus:border-red-500 bg-red-50/30' : 'border-ink-200 focus:ring-brand/20 focus:border-brand'}`} />
   );
 }
 
-function Inp({ value, onChange, placeholder, type = 'text' }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+function Inp({ value, onChange, placeholder, type = 'text', error = false }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string; error?: boolean }) {
   return (
     <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+      className={`w-full border rounded-lg px-3 py-1.5 text-[13px] text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 transition ${error ? 'border-red-400 focus:ring-red-200 focus:border-red-500 bg-red-50/30' : 'border-ink-200 focus:ring-brand/20 focus:border-brand'}`} />
   );
 }
 
-function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function Section({ title, children, defaultOpen = true, error = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean; error?: boolean }) {
+  const [open, setOpen] = useState(error || defaultOpen);
+  useEffect(() => { if (error) setOpen(true); }, [error]);
   return (
-    <div className="border border-ink-200 rounded-xl overflow-hidden">
+    <div className={`border rounded-xl overflow-hidden ${error ? 'border-red-400' : 'border-ink-200'}`}>
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-ink-50 hover:bg-ink-100 transition-colors">
-        <span className="text-[12px] font-bold text-ink-700 uppercase tracking-wide">{title}</span>
-        {open ? <ChevronUp size={14} className="text-ink-400" /> : <ChevronDown size={14} className="text-ink-400" />}
+        className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${error ? 'bg-red-50 hover:bg-red-100' : 'bg-ink-50 hover:bg-ink-100'}`}>
+        <span className={`text-[12px] font-bold uppercase tracking-wide flex items-center gap-1.5 ${error ? 'text-red-700' : 'text-ink-700'}`}>
+          {error && <span className="text-red-500">⚠</span>}{title}
+        </span>
+        {open ? <ChevronUp size={14} className={error ? 'text-red-400' : 'text-ink-400'} /> : <ChevronDown size={14} className={error ? 'text-red-400' : 'text-ink-400'} />}
       </button>
       {open && <div className="px-4 py-4 flex flex-col gap-4">{children}</div>}
     </div>
@@ -65,17 +68,17 @@ function Section({ title, children, defaultOpen = true }: { title: string; child
 }
 
 // ─── Multiple Choice ───────────────────────────────────────────────────────────
-function MultipleChoiceEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function MultipleChoiceEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as { question: string; options: { id: string; label: string; isCorrect: boolean }[]; allowMultiple: boolean };
   const set = (patch: Partial<typeof c>) => onChange({ ...c, ...patch });
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="Domanda">
-        <Textarea value={c.question ?? ''} onChange={v => set({ question: v })} placeholder="Scrivi la domanda situazionale..." rows={3} />
+      <Section title="Domanda" error={errors.has('question')}>
+        <Textarea value={c.question ?? ''} onChange={v => set({ question: v })} placeholder="Scrivi la domanda situazionale..." rows={3} error={errors.has('question') && !c.question?.trim()} />
       </Section>
 
-      <Section title="Opzioni di risposta">
+      <Section title="Opzioni di risposta" error={errors.has('options') || errors.has('options_correct')}>
         <div className="flex flex-col gap-2">
           {(c.options ?? []).map((opt, i) => (
             <div key={opt.id} className="flex items-center gap-2">
@@ -108,14 +111,14 @@ function MultipleChoiceEditor({ config, onChange }: { config: any; onChange: (c:
 }
 
 // ─── Free Text ────────────────────────────────────────────────────────────────
-function FreeTextEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function FreeTextEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as { prompt: string; expectedSignals: string[]; redFlags: string[]; rubric: { key: string; label: string; maxScore: number; description: string }[] };
   const set = (patch: Partial<typeof c>) => onChange({ ...c, ...patch });
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="Traccia / Prompt">
-        <Textarea value={c.prompt ?? ''} onChange={v => set({ prompt: v })} placeholder="Descrivi cosa deve fare il candidato..." rows={4} />
+      <Section title="Traccia / Prompt" error={errors.has('prompt')}>
+        <Textarea value={c.prompt ?? ''} onChange={v => set({ prompt: v })} placeholder="Descrivi cosa deve fare il candidato..." rows={4} error={errors.has('prompt') && !c.prompt?.trim()} />
       </Section>
 
       <Section title="Segnali attesi (corretti)" defaultOpen={false}>
@@ -160,7 +163,7 @@ function FreeTextEditor({ config, onChange }: { config: any; onChange: (c: any) 
 // ─── Welcome / TTS Slides ─────────────────────────────────────────────────────
 const VOICES = ['ash', 'alloy', 'echo', 'fable', 'nova', 'shimmer', 'onyx'] as const;
 
-function WelcomeEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function WelcomeEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
   const hasTts = !!(c.slides?.length || c.persona);
@@ -185,20 +188,20 @@ function WelcomeEditor({ config, onChange }: { config: any; onChange: (c: any) =
       </Section>
 
       {!ttsMode && (
-        <Section title="Messaggio di benvenuto">
-          <Field label="Nome founder/manager"><Inp value={c.founderName ?? ''} onChange={v => set({ founderName: v })} placeholder="Marco Verdi" /></Field>
+        <Section title="Messaggio di benvenuto" error={errors.has('founderName') || errors.has('founderMessage')}>
+          <Field label="Nome founder/manager" error={errors.has('founderName') && !c.founderName?.trim()}><Inp value={c.founderName ?? ''} onChange={v => set({ founderName: v })} placeholder="Marco Verdi" error={errors.has('founderName') && !c.founderName?.trim()} /></Field>
           <Field label="Ruolo"><Inp value={c.founderRole ?? ''} onChange={v => set({ founderRole: v })} placeholder="CEO & Co-Founder" /></Field>
-          <Field label="Messaggio">
-            <Textarea value={c.founderMessage ?? ''} onChange={v => set({ founderMessage: v })} rows={4} placeholder="Ciao! Sono felice che tu stia esplorando questa opportunità..." />
+          <Field label="Messaggio" error={errors.has('founderMessage') && !c.founderMessage?.trim()}>
+            <Textarea value={c.founderMessage ?? ''} onChange={v => set({ founderMessage: v })} rows={4} placeholder="Ciao! Sono felice che tu stia esplorando questa opportunità..." error={errors.has('founderMessage') && !c.founderMessage?.trim()} />
           </Field>
         </Section>
       )}
 
       {ttsMode && (
         <>
-          <Section title="Persona (relatore)">
+          <Section title="Persona (relatore)" error={errors.has('persona')}>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Nome"><Inp value={c.persona?.name ?? ''} onChange={v => setPersona({ name: v })} placeholder="Marco Verdi" /></Field>
+              <Field label="Nome" error={errors.has('persona') && !c.persona?.name?.trim()}><Inp value={c.persona?.name ?? ''} onChange={v => setPersona({ name: v })} placeholder="Marco Verdi" error={errors.has('persona') && !c.persona?.name?.trim()} /></Field>
               <Field label="Ruolo/Titolo"><Inp value={c.persona?.title ?? ''} onChange={v => setPersona({ title: v })} placeholder="CEO & Co-Founder" /></Field>
               <Field label="Foto URL (opzionale)"><Inp value={c.persona?.photoUrl ?? ''} onChange={v => setPersona({ photoUrl: v })} placeholder="https://..." /></Field>
               <Field label="Voce TTS">
@@ -213,7 +216,7 @@ function WelcomeEditor({ config, onChange }: { config: any; onChange: (c: any) =
             </Field>
           </Section>
 
-          <Section title="Slide con audio">
+          <Section title="Slide con audio" error={errors.has('slides')}>
             <p className="text-[12px] text-ink-500 -mt-1 mb-3">
               Ogni slide genera un audio TTS dal testo. L'HTML (opzionale) sostituisce il testo nella visualizzazione — utile per grassetto, link, elenchi.
             </p>
@@ -246,7 +249,7 @@ function WelcomeEditor({ config, onChange }: { config: any; onChange: (c: any) =
 }
 
 // ─── CRM Prioritization ───────────────────────────────────────────────────────
-function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function CrmEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
   const isRich = !!(c.records?.[0]?.activities || c.records?.[0]?.sector || c.records?.[0]?.contactEmail || c.timeLimitSeconds);
@@ -286,12 +289,12 @@ function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => vo
         )}
       </Section>
 
-      <Section title="Contesto scenario">
-        <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sei un AE, è lunedì mattina...)" rows={3} />
-        <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Istruzione per il candidato (es. Prioritizza questi account...)" rows={2} />
+      <Section title="Contesto scenario" error={errors.has('scenarioContext') || errors.has('taskPrompt')}>
+        <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sei un AE, è lunedì mattina...)" rows={3} error={errors.has('scenarioContext') && !c.scenarioContext?.trim()} />
+        <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Istruzione per il candidato (es. Prioritizza questi account...)" rows={2} error={errors.has('taskPrompt') && !c.taskPrompt?.trim()} />
       </Section>
 
-      <Section title="Record CRM">
+      <Section title="Record CRM" error={errors.has('records') || errors.has('expectedTopRecordIds')}>
         <div className="flex flex-col gap-4">
           {(c.records ?? []).map((r: any, i: number) => (
             <div key={r.id} className="border border-ink-200 rounded-xl p-4 flex flex-col gap-3">
@@ -386,7 +389,7 @@ function CrmEditor({ config, onChange }: { config: any; onChange: (c: any) => vo
 const NOTIF_CHANNELS = ['slack', 'email', 'sms', 'system_alert', 'crm_alert'] as const;
 const ACTIONS = ['reply', 'ignore', 'escalate', 'schedule_followup', 'create_task', 'ask_clarification'];
 
-function NotificationEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function NotificationEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
   const isSlack = !!c.workspace;
@@ -418,13 +421,13 @@ function NotificationEditor({ config, onChange }: { config: any; onChange: (c: a
         </div>
       </Section>
 
-      <Section title="Contesto scenario">
-        <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sono le 9:00 di martedì...)" rows={3} />
-        <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Cosa deve fare il candidato" rows={2} />
+      <Section title="Contesto scenario" error={errors.has('scenarioContext') || errors.has('taskPrompt')}>
+        <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sono le 9:00 di martedì...)" rows={3} error={errors.has('scenarioContext') && !c.scenarioContext?.trim()} />
+        <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Cosa deve fare il candidato" rows={2} error={errors.has('taskPrompt') && !c.taskPrompt?.trim()} />
       </Section>
 
       {!slackMode && (
-        <Section title="Notifiche">
+        <Section title="Notifiche" error={errors.has('notifications')}>
           <div className="flex flex-col gap-4">
             {(c.notifications ?? []).map((n: any, i: number) => (
               <div key={n.id} className="border border-ink-200 rounded-xl p-4 flex flex-col gap-3">
@@ -477,9 +480,9 @@ function NotificationEditor({ config, onChange }: { config: any; onChange: (c: a
 
       {slackMode && (
         <>
-          <Section title="Workspace">
+          <Section title="Workspace" error={errors.has('workspace')}>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Nome workspace"><Inp value={c.workspace?.name ?? ''} onChange={v => set({ workspace: { ...(c.workspace ?? {}), name: v } })} placeholder="Acme HQ" /></Field>
+              <Field label="Nome workspace" error={errors.has('workspace') && !c.workspace?.name?.trim()}><Inp value={c.workspace?.name ?? ''} onChange={v => set({ workspace: { ...(c.workspace ?? {}), name: v } })} placeholder="Acme HQ" error={errors.has('workspace') && !c.workspace?.name?.trim()} /></Field>
               <Field label="Max risposte AI per canale">
                 <input type="number" min={1} max={10} value={c.maxRepliesPerChannel ?? 3}
                   onChange={e => set({ maxRepliesPerChannel: Number(e.target.value) })}
@@ -581,18 +584,18 @@ function NotificationEditor({ config, onChange }: { config: any; onChange: (c: a
 }
 
 // ─── Email Response ───────────────────────────────────────────────────────────
-function EmailEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function EmailEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="Contesto">
-        <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Contesto della situazione..." rows={3} />
-        <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="es. Rispondi a questa email in modo professionale..." rows={2} />
+      <Section title="Contesto" error={errors.has('scenarioContext') || errors.has('taskPrompt')}>
+        <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Contesto della situazione..." rows={3} error={errors.has('scenarioContext') && !c.scenarioContext?.trim()} />
+        <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="es. Rispondi a questa email in modo professionale..." rows={2} error={errors.has('taskPrompt') && !c.taskPrompt?.trim()} />
       </Section>
 
-      <Section title="Thread email">
+      <Section title="Thread email" error={errors.has('emailThread')}>
         <div className="flex flex-col gap-4">
           {(c.emailThread ?? []).map((e: any, i: number) => (
             <div key={e.id} className="border border-ink-200 rounded-xl p-4 flex flex-col gap-3">
@@ -656,7 +659,7 @@ const OBJECTION_TYPES = ['budget', 'timing', 'authority', 'need', 'trust', 'comp
 const MOODS = ['friendly', 'neutral', 'skeptical', 'busy', 'frustrated'];
 const IMPORTANCE = ['low', 'medium', 'high', 'critical'];
 
-function SimulatedCallEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function SimulatedCallEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
   const setPersona = (patch: any) => set({ aiPersona: { ...(c.aiPersona ?? {}), ...patch } });
@@ -664,13 +667,13 @@ function SimulatedCallEditor({ config, onChange }: { config: any; onChange: (c: 
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="Brief per il candidato (pubblico)">
-        <Textarea value={c.publicCandidateBrief ?? ''} onChange={v => set({ publicCandidateBrief: v })} rows={4} placeholder="Descrivi il contesto che il candidato vedrà prima della chiamata..." />
+      <Section title="Brief per il candidato (pubblico)" error={errors.has('publicCandidateBrief')}>
+        <Textarea value={c.publicCandidateBrief ?? ''} onChange={v => set({ publicCandidateBrief: v })} rows={4} placeholder="Descrivi il contesto che il candidato vedrà prima della chiamata..." error={errors.has('publicCandidateBrief') && !c.publicCandidateBrief?.trim()} />
       </Section>
 
-      <Section title="Persona AI (acquirente/interlocutore)">
+      <Section title="Persona AI (acquirente/interlocutore)" error={errors.has('aiPersona')}>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Nome"><Inp value={c.aiPersona?.name ?? ''} onChange={v => setPersona({ name: v })} placeholder="Alex Martinez" /></Field>
+          <Field label="Nome" error={errors.has('aiPersona') && !c.aiPersona?.name?.trim()}><Inp value={c.aiPersona?.name ?? ''} onChange={v => setPersona({ name: v })} placeholder="Alex Martinez" error={errors.has('aiPersona') && !c.aiPersona?.name?.trim()} /></Field>
           <Field label="Ruolo"><Inp value={c.aiPersona?.role ?? ''} onChange={v => setPersona({ role: v })} placeholder="Head of Operations" /></Field>
           <Field label="Azienda (opzionale)"><Inp value={c.aiPersona?.company ?? ''} onChange={v => setPersona({ company: v })} placeholder="Acme Corp" /></Field>
           <Field label="Umore iniziale">
@@ -753,31 +756,31 @@ function SimulatedCallEditor({ config, onChange }: { config: any; onChange: (c: 
 // ─── Spreadsheet Edit ─────────────────────────────────────────────────────────
 const CELL_TYPES = ['numeric', 'formula', 'text', 'comment'] as const;
 
-function SpreadsheetEditEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+function SpreadsheetEditEditor({ config, onChange, errors = new Set<string>() }: { config: any; onChange: (c: any) => void; errors?: Set<string> }) {
   const c = config as any;
   const set = (patch: any) => onChange({ ...c, ...patch });
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="Template Google Sheet">
-        <Field label="URL o ID del template">
-          <Inp value={c.templateSheetUrl ?? ''} onChange={v => set({ templateSheetUrl: v })} placeholder="https://docs.google.com/spreadsheets/d/..." />
+      <Section title="Template Google Sheet" error={errors.has('templateSheetUrl')}>
+        <Field label="URL o ID del template" error={errors.has('templateSheetUrl') && (!c.templateSheetUrl?.trim() || c.templateSheetUrl === 'PLACEHOLDER_TEMPLATE_ID')}>
+          <Inp value={c.templateSheetUrl ?? ''} onChange={v => set({ templateSheetUrl: v })} placeholder="https://docs.google.com/spreadsheets/d/..." error={errors.has('templateSheetUrl') && (!c.templateSheetUrl?.trim() || c.templateSheetUrl === 'PLACEHOLDER_TEMPLATE_ID')} />
         </Field>
         <p className="text-[11px] text-ink-400 -mt-1">
           Il service account deve avere accesso al file. I candidati riceveranno una copia modificabile.
         </p>
       </Section>
 
-      <Section title="Contesto e istruzioni">
-        <Field label="Contesto scenario">
-          <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sei un AE, il manager ti ha inviato i dati di pipeline...)" rows={3} />
+      <Section title="Contesto e istruzioni" error={errors.has('scenarioContext') || errors.has('taskPrompt')}>
+        <Field label="Contesto scenario" error={errors.has('scenarioContext') && !c.scenarioContext?.trim()}>
+          <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sei un AE, il manager ti ha inviato i dati di pipeline...)" rows={3} error={errors.has('scenarioContext') && !c.scenarioContext?.trim()} />
         </Field>
-        <Field label="Istruzione per il candidato">
-          <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Cosa deve fare il candidato nel foglio?" rows={2} />
+        <Field label="Istruzione per il candidato" error={errors.has('taskPrompt') && !c.taskPrompt?.trim()}>
+          <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Cosa deve fare il candidato nel foglio?" rows={2} error={errors.has('taskPrompt') && !c.taskPrompt?.trim()} />
         </Field>
       </Section>
 
-      <Section title="Celle da compilare">
+      <Section title="Celle da compilare" error={errors.has('cells')}>
         <p className="text-[11px] text-ink-500 -mt-1 mb-2">
           Definisci le celle che il candidato deve compilare. I valori attesi (🔒) non sono visibili al candidato.
         </p>
@@ -862,16 +865,17 @@ function SpreadsheetEditEditor({ config, onChange }: { config: any; onChange: (c
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
-export function ConfigEditor({ type, config, onChange }: { type: string; config: any; onChange: (c: any) => void }) {
+export function ConfigEditor({ type, config, onChange, errors = [] }: { type: string; config: any; onChange: (c: any) => void; errors?: string[] }) {
+  const errSet = new Set(errors);
   switch (type) {
-    case 'multiple_choice':       return <MultipleChoiceEditor config={config} onChange={onChange} />;
-    case 'free_text':             return <FreeTextEditor config={config} onChange={onChange} />;
-    case 'welcome':               return <WelcomeEditor config={config} onChange={onChange} />;
-    case 'crm_prioritization':    return <CrmEditor config={config} onChange={onChange} />;
-    case 'notification_reaction': return <NotificationEditor config={config} onChange={onChange} />;
-    case 'email_response':        return <EmailEditor config={config} onChange={onChange} />;
-    case 'simulated_call':        return <SimulatedCallEditor config={config} onChange={onChange} />;
-    case 'spreadsheet_edit':      return <SpreadsheetEditEditor config={config} onChange={onChange} />;
+    case 'multiple_choice':       return <MultipleChoiceEditor config={config} onChange={onChange} errors={errSet} />;
+    case 'free_text':             return <FreeTextEditor config={config} onChange={onChange} errors={errSet} />;
+    case 'welcome':               return <WelcomeEditor config={config} onChange={onChange} errors={errSet} />;
+    case 'crm_prioritization':    return <CrmEditor config={config} onChange={onChange} errors={errSet} />;
+    case 'notification_reaction': return <NotificationEditor config={config} onChange={onChange} errors={errSet} />;
+    case 'email_response':        return <EmailEditor config={config} onChange={onChange} errors={errSet} />;
+    case 'simulated_call':        return <SimulatedCallEditor config={config} onChange={onChange} errors={errSet} />;
+    case 'spreadsheet_edit':      return <SpreadsheetEditEditor config={config} onChange={onChange} errors={errSet} />;
     default:                      return <p className="text-[13px] text-ink-400">Nessun editor disponibile per questo tipo di step.</p>;
   }
 }
