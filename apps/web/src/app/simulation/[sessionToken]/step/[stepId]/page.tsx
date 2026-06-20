@@ -162,6 +162,7 @@ function StepRenderer({ type, config, answer, onAnswerChange, onTrackEvent }: { 
     case 'notification_reaction': return <NotificationReactionRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'simulated_call': return <SimulatedCallRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />;
     case 'welcome': return <WelcomeRenderer config={config} answer={answer} onChange={onAnswerChange} />;
+    case 'spreadsheet_edit': return <SpreadsheetEditRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     default: return <div className="text-gray-500">Unknown step type: {type}</div>;
   }
 }
@@ -688,6 +689,119 @@ function SimulatedCallRenderer({ config, answer, onChange, onTrackEvent }: any) 
           Termina chiamata
         </button>
       </div>
+    </div>
+  );
+}
+
+function SpreadsheetEditRenderer({ config, answer, onChange }: any) {
+  const { sessionToken, stepId } = useParams<{ sessionToken: string; stepId: string }>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const sheetUrl: string | null = answer?.sheetUrl ?? null;
+
+  async function openSheet() {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api.post<{ sheetId: string; sheetUrl: string }>(
+        `/api/candidate/sessions/${sessionToken}/steps/${stepId}/spreadsheet-start`,
+        {},
+      );
+      onChange({ sheetOpened: true, sheetId: data.sheetId, sheetUrl: data.sheetUrl });
+      window.open(data.sheetUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      setError('Impossibile creare il foglio. Riprova.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Scenario context */}
+      {config.scenarioContext && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Scenario</p>
+          <p className="text-sm text-gray-700 leading-relaxed">{config.scenarioContext}</p>
+        </div>
+      )}
+
+      {/* Task prompt */}
+      {config.taskPrompt && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-amber-800">{config.taskPrompt}</p>
+        </div>
+      )}
+
+      {/* Cells reference table */}
+      {config.cells?.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Celle da compilare</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 w-16">Cella</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Descrizione</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 w-24">Tipo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {config.cells.map((cell: any, i: number) => (
+                <tr key={i} className="border-t border-gray-100">
+                  <td className="px-4 py-2.5 font-mono text-sm text-blue-700 font-semibold">{cell.ref}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{cell.label}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      cell.cellType === 'numeric' ? 'bg-blue-50 text-blue-700' :
+                      cell.cellType === 'formula' ? 'bg-purple-50 text-purple-700' :
+                      'bg-green-50 text-green-700'
+                    }`}>{cell.cellType}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Sheet action */}
+      {!sheetUrl ? (
+        <div className="space-y-3">
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{error}</p>}
+          <button
+            onClick={openSheet}
+            disabled={loading}
+            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Preparazione foglio...</>
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+                Apri il foglio Google Sheets
+              </>
+            )}
+          </button>
+          <p className="text-xs text-gray-400 text-center">Si aprirà una nuova scheda con il tuo foglio personale. Torna qui quando hai finito.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-emerald-800">Foglio aperto</p>
+              <a href={sheetUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline truncate block">
+                Riaprire il foglio →
+              </a>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 text-center">Quando hai compilato tutte le celle, clicca <strong>Avanti</strong> qui sotto per inviare le tue risposte.</p>
+        </div>
+      )}
     </div>
   );
 }

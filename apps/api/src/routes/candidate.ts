@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { getModule } from '@job-sim/simulation-modules';
 import { scoringQueue } from '../lib/queues';
 import { SimulationVersionSnapshot } from '@job-sim/shared';
+import { createCandidateSheet, readSheetCells, extractSheetId } from '../lib/google-sheets';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -150,6 +151,42 @@ router.post('/sessions/:sessionToken/steps/:stepId/autosave', async (req, res) =
   res.json({ success: true });
 });
 
+// Spreadsheet: create candidate copy of template (idempotent)
+router.post('/sessions/:sessionToken/steps/:stepId/spreadsheet-start', async (req, res) => {
+  const session = await prisma.simulationSession.findFirst({ where: { sessionToken: req.params.sessionToken } });
+  if (!session || session.status !== 'in_progress') { res.status(400).json({ error: 'Invalid session' }); return; }
+
+  // Idempotency: return existing sheet if already created
+  const existing = await prisma.simulationEvent.findFirst({
+    where: { sessionId: session.id, stepId: req.params.stepId, eventType: 'spreadsheet_sheet_created' },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (existing) {
+    const payload = existing.payload as any;
+    res.json({ sheetId: payload.sheetId, sheetUrl: payload.sheetUrl });
+    return;
+  }
+
+  const version = await prisma.simulationVersion.findUnique({ where: { id: session.simulationVersionId } });
+  const snapshot = version?.snapshot as unknown as SimulationVersionSnapshot;
+  const step = snapshot?.steps.find(s => s.id === req.params.stepId);
+  if (!step || step.type !== 'spreadsheet_edit') { res.status(404).json({ error: 'Step not found' }); return; }
+
+  const config = step.config as any;
+  const templateSheetId = extractSheetId(config.templateSheetUrl ?? '');
+
+  try {
+    const { sheetId, sheetUrl } = await createCandidateSheet(templateSheetId);
+    await prisma.simulationEvent.create({
+      data: { organizationId: session.organizationId, sessionId: session.id, stepId: step.id, eventType: 'spreadsheet_sheet_created', payload: { sheetId, sheetUrl } },
+    });
+    res.json({ sheetId, sheetUrl });
+  } catch (err: any) {
+    console.error('[spreadsheet-start] Error creating sheet:', err?.message);
+    res.status(500).json({ error: 'Impossibile creare il foglio Google. Verifica la configurazione del template.' });
+  }
+});
+
 // Submit step
 router.post('/sessions/:sessionToken/steps/:stepId/submit', async (req, res) => {
   const session = await prisma.simulationSession.findFirst({ where: { sessionToken: req.params.sessionToken } });
@@ -160,8 +197,34 @@ router.post('/sessions/:sessionToken/steps/:stepId/submit', async (req, res) => 
   const step = snapshot?.steps.find(s => s.id === req.params.stepId);
   if (!step) { res.status(404).json({ error: 'Step not found' }); return; }
 
+  let answerToSubmit = req.body.answer;
+
+  // For spreadsheet_edit: build answer server-side by reading cells from Google Sheets
+  if (step.type === 'spreadsheet_edit') {
+    const sheetEvent = await prisma.simulationEvent.findFirst({
+      where: { sessionId: session.id, stepId: step.id, eventType: 'spreadsheet_sheet_created' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!sheetEvent) {
+      res.status(400).json({ error: 'Spreadsheet non ancora avviato. Apri il foglio prima di inviare.' });
+      return;
+    }
+    const { sheetId } = sheetEvent.payload as any;
+    const config = step.config as any;
+    const cellRefs = (config.cells ?? []).map((c: any) => c.ref) as string[];
+
+    try {
+      const capturedCells = await readSheetCells(sheetId, cellRefs);
+      answerToSubmit = { candidateSheetId: sheetId, capturedCells };
+    } catch (err: any) {
+      console.error('[submit] Failed to read sheet cells:', err?.message);
+      res.status(500).json({ error: 'Impossibile leggere il foglio Google. Riprova.' });
+      return;
+    }
+  }
+
   const mod = getModule(step.type);
-  const validation = mod.validateAnswer(req.body.answer);
+  const validation = mod.validateAnswer(answerToSubmit);
   if (!validation.success) { res.status(400).json({ error: 'Invalid answer', details: validation.errors }); return; }
 
   const existing = await prisma.stepSubmission.findFirst({ where: { sessionId: session.id, stepId: step.id } });
@@ -177,7 +240,7 @@ router.post('/sessions/:sessionToken/steps/:stepId/submit', async (req, res) => 
       stepType: step.type,
       status: 'submitted',
       submittedAt: new Date(),
-      answer: req.body.answer,
+      answer: answerToSubmit,
       scoringStatus: 'queued',
     },
   });

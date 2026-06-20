@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Plus, X, GripVertical, ChevronRight, Zap, CheckCircle, Trash2, AlignLeft, List, Mail, Phone, LayoutGrid, Sparkles } from 'lucide-react';
+import { Plus, X, GripVertical, ChevronRight, Zap, CheckCircle, Trash2, AlignLeft, List, Mail, Phone, LayoutGrid, Sparkles, Table2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button, Badge, Alert } from '@/components/ui';
 import { ConfigEditor } from './ConfigEditor';
@@ -26,6 +26,7 @@ const MODULE_LABELS: Record<string, string> = {
   notification_reaction: 'Reazione notifiche',
   email_response:        'Risposta email',
   simulated_call:        'Chiamata simulata',
+  spreadsheet_edit:      'Foglio di calcolo',
 };
 
 const MODULE_ICONS: Record<string, React.ReactNode> = {
@@ -35,6 +36,7 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
   notification_reaction: <Zap size={14} />,
   email_response:        <Mail size={14} />,
   simulated_call:        <Phone size={14} />,
+  spreadsheet_edit:      <Table2 size={14} />,
 };
 
 const MODULE_COLORS: Record<string, string> = {
@@ -44,6 +46,7 @@ const MODULE_COLORS: Record<string, string> = {
   notification_reaction: 'bg-yellow-50 text-yellow-700',
   email_response:        'bg-green-50 text-green-700',
   simulated_call:        'bg-brand-subtle text-brand',
+  spreadsheet_edit:      'bg-emerald-50 text-emerald-700',
 };
 
 function getDefaultConfig(type: string): Record<string, unknown> {
@@ -54,6 +57,7 @@ function getDefaultConfig(type: string): Record<string, unknown> {
     notification_reaction: { scenarioContext: '', taskPrompt: '', notifications: [], allowedActions: ['reply', 'ignore', 'escalate', 'schedule_followup', 'create_task'], scoringWeights: { actionChoice: 0.4, prioritization: 0.3, communication: 0.2, escalationJudgment: 0.1 } },
     email_response: { scenarioContext: '', emailThread: [], taskPrompt: '', expectedSignals: [], redFlags: [], rubric: [] },
     simulated_call: { callType: 'sales_discovery', title: '', publicCandidateBrief: '', estimatedDurationSeconds: 600, maxDurationSeconds: 720, aiPersona: { name: 'Alex', role: 'Prospect', personality: 'Professional and direct.', communicationStyle: 'Concise.', baselineMood: 'neutral' }, publicBusinessContext: { knownContext: [] }, hiddenBuyerState: { initialInterestLevel: 50, initialTrustLevel: 40, initialUrgencyLevel: 30, hiddenObjections: [], buyingCriteria: [], dealBreakers: [] }, allowedOutcomes: ['schedule_follow_up', 'schedule_demo'], guardrails: { doNotRevealHiddenObjectionsDirectly: true, requireCandidateDiscoveryBeforeRevealingObjections: true, preventEasyAgreement: true, stayInPersona: true, refuseOutOfScenarioRequests: true }, scoringRubric: [] },
+    spreadsheet_edit: { scenarioContext: '', taskPrompt: '', templateSheetUrl: '', cells: [], textRubric: [], expectedSignals: [], redFlags: [] },
   };
   return (defaults[type] ?? {}) as Record<string, unknown>;
 }

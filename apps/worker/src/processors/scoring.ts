@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { getModule } from '@job-sim/simulation-modules';
 import { scoreWithAiRubric, scoreCallTranscript, aggregateCandidateResult } from '@job-sim/scoring';
 import { SimulationVersionSnapshot, StepScore, SimulationStepType } from '@job-sim/shared';
+import { deleteSheet } from '../lib/google-sheets';
 
 export async function processScoringJob(job: Job) {
   const { submissionId, organizationId } = job.data;
@@ -77,6 +78,69 @@ export async function processScoringJob(job: Job) {
         score = result.score;
         traceInput = result.traceInput;
         traceOutput = result.traceOutput;
+      }
+    } else if (baseScore.scoringMode === 'hybrid' && submission.stepType === 'spreadsheet_edit') {
+      const config = stepConfig.config as any;
+      const answer = submission.answer as any;
+      const cells = config.cells ?? [];
+      const totalWeight = cells.reduce((s: number, c: any) => s + (c.weight ?? 1), 0) || 1;
+      const textCells = cells.filter((c: any) => c.cellType === 'text' || c.cellType === 'comment');
+      const textWeight = textCells.reduce((s: number, c: any) => s + (c.weight ?? 1), 0);
+      const textRatio = textWeight / totalWeight;
+
+      if (textCells.length > 0 && textRatio > 0) {
+        // Build AI rubric from textRubric config or auto-generate from text cells
+        const textRubric: Array<{ key: string; label: string; maxScore: number; description: string }> =
+          config.textRubric?.length > 0
+            ? config.textRubric
+            : textCells.map((cell: any) => ({
+                key: cell.ref,
+                label: cell.label,
+                maxScore: 100,
+                description: `Valuta il contenuto della cella ${cell.ref}: ${cell.label}`,
+              }));
+
+        const answerText = textCells.map((cell: any) => {
+          const captured = (answer.capturedCells ?? []).find((c: any) => c.ref === cell.ref);
+          return `${cell.label} (${cell.ref}): ${captured?.value ?? '(vuoto)'}`;
+        }).join('\n');
+
+        const result = await scoreWithAiRubric({
+          roleContext: `Simulation step: ${stepConfig.title}`,
+          stepInstructions: stepConfig.instructions ?? '',
+          rubric: textRubric,
+          expectedSignals: config.expectedSignals ?? [],
+          redFlagDescriptions: config.redFlags ?? [],
+          candidateAnswer: answerText,
+          stepId: submission.stepId,
+          stepType: submission.stepType as SimulationStepType,
+        });
+
+        // AI returns 0-100, scale to the text cells' share of the total score
+        const textContribution = Math.round(result.score.totalScore * textRatio);
+
+        score = {
+          ...baseScore,
+          totalScore: Math.min(100, baseScore.totalScore + textContribution),
+          criteria: [...(baseScore.criteria ?? []), ...result.score.criteria],
+          summary: result.score.summary,
+          scoringMode: 'hybrid',
+          confidence: result.score.confidence,
+          needsManualReview: result.score.needsManualReview,
+          redFlags: [...(baseScore.redFlags ?? []), ...result.score.redFlags],
+          skillScores: [],
+        };
+        traceInput = result.traceInput;
+        traceOutput = result.traceOutput;
+      } else {
+        score = baseScore;
+      }
+
+      // Cleanup candidate sheet after scoring
+      if (answer.candidateSheetId) {
+        deleteSheet(answer.candidateSheetId).catch(err =>
+          console.error('[scoring] Failed to delete candidate sheet:', (err as any)?.message),
+        );
       }
     } else {
       score = baseScore;

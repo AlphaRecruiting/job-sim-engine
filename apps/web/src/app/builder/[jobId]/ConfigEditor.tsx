@@ -457,6 +457,117 @@ function SimulatedCallEditor({ config, onChange }: { config: any; onChange: (c: 
   );
 }
 
+// ─── Spreadsheet Edit ─────────────────────────────────────────────────────────
+const CELL_TYPES = ['numeric', 'formula', 'text', 'comment'] as const;
+
+function SpreadsheetEditEditor({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+  const c = config as any;
+  const set = (patch: any) => onChange({ ...c, ...patch });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Section title="Template Google Sheet">
+        <Field label="URL o ID del template">
+          <Inp value={c.templateSheetUrl ?? ''} onChange={v => set({ templateSheetUrl: v })} placeholder="https://docs.google.com/spreadsheets/d/..." />
+        </Field>
+        <p className="text-[11px] text-ink-400 -mt-1">
+          Il service account deve avere accesso al file. I candidati riceveranno una copia modificabile.
+        </p>
+      </Section>
+
+      <Section title="Contesto e istruzioni">
+        <Field label="Contesto scenario">
+          <Textarea value={c.scenarioContext ?? ''} onChange={v => set({ scenarioContext: v })} placeholder="Descrivi la situazione (es. Sei un AE, il manager ti ha inviato i dati di pipeline...)" rows={3} />
+        </Field>
+        <Field label="Istruzione per il candidato">
+          <Textarea value={c.taskPrompt ?? ''} onChange={v => set({ taskPrompt: v })} placeholder="Cosa deve fare il candidato nel foglio?" rows={2} />
+        </Field>
+      </Section>
+
+      <Section title="Celle da compilare">
+        <p className="text-[11px] text-ink-500 -mt-1 mb-2">
+          Definisci le celle che il candidato deve compilare. I valori attesi (🔒) non sono visibili al candidato.
+        </p>
+        <div className="flex flex-col gap-3">
+          {(c.cells ?? []).map((cell: any, i: number) => (
+            <div key={i} className="border border-ink-200 rounded-xl p-3 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <input value={cell.ref ?? ''} onChange={e => set({ cells: c.cells.map((x: any, j: number) => j === i ? { ...x, ref: e.target.value } : x) })}
+                  placeholder="A1" className="w-16 border border-ink-200 rounded-lg px-2 py-1.5 text-[13px] font-mono focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                <input value={cell.label ?? ''} onChange={e => set({ cells: c.cells.map((x: any, j: number) => j === i ? { ...x, label: e.target.value } : x) })}
+                  placeholder="Nome cella (es. Totale pipeline)" className="flex-1 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                <select value={cell.cellType ?? 'numeric'} onChange={e => set({ cells: c.cells.map((x: any, j: number) => j === i ? { ...x, cellType: e.target.value } : x) })}
+                  className="border border-ink-200 rounded-lg px-2 py-1.5 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-brand/20">
+                  {CELL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <button type="button" onClick={() => set({ cells: c.cells.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {(cell.cellType === 'numeric' || cell.cellType === 'formula') && (
+                  <Field label={`Valore atteso 🔒`}>
+                    <Inp value={cell.expectedValue ?? ''} onChange={v => set({ cells: c.cells.map((x: any, j: number) => j === i ? { ...x, expectedValue: v } : x) })} placeholder={cell.cellType === 'numeric' ? '123456' : '=SOMMA(B2:B4)'} />
+                  </Field>
+                )}
+                {cell.cellType === 'numeric' && (
+                  <Field label="Tolleranza % 🔒">
+                    <input type="number" min={0} max={50} value={cell.numericTolerance ?? 2}
+                      onChange={e => set({ cells: c.cells.map((x: any, j: number) => j === i ? { ...x, numericTolerance: Number(e.target.value) } : x) })}
+                      className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                  </Field>
+                )}
+                <Field label="Peso">
+                  <input type="number" min={1} max={10} value={cell.weight ?? 1}
+                    onChange={e => set({ cells: c.cells.map((x: any, j: number) => j === i ? { ...x, weight: Number(e.target.value) } : x) })}
+                    className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                </Field>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => set({ cells: [...(c.cells ?? []), { ref: '', label: '', cellType: 'numeric', expectedValue: '', numericTolerance: 2, weight: 1 }] })}
+            className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit">
+            <Plus size={12} /> Aggiungi cella
+          </button>
+        </div>
+      </Section>
+
+      {(c.cells ?? []).some((cell: any) => cell.cellType === 'text' || cell.cellType === 'comment') && (
+        <Section title="Rubrica AI per celle testuali" defaultOpen={false}>
+          <p className="text-[12px] text-ink-500 -mt-1 mb-2">
+            Definisci come l'AI valuterà le celle di tipo testo/commento. Se vuoto, l'AI usa una rubrica automatica.
+          </p>
+          <div className="flex flex-col gap-3">
+            {(c.textRubric ?? []).map((r: any, i: number) => (
+              <div key={r.key ?? i} className="border border-ink-200 rounded-lg p-3 flex flex-col gap-2">
+                <div className="flex gap-2 items-center">
+                  <input value={r.label ?? ''} onChange={e => set({ textRubric: c.textRubric.map((x: any, j: number) => j === i ? { ...x, label: e.target.value } : x) })}
+                    placeholder="Nome criterio" className="flex-1 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition" />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input type="number" value={r.maxScore ?? 25} onChange={e => set({ textRubric: c.textRubric.map((x: any, j: number) => j === i ? { ...x, maxScore: Number(e.target.value) } : x) })}
+                      className="w-16 border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 transition" placeholder="25" />
+                    <span className="text-[12px] text-ink-400">pt</span>
+                  </div>
+                  <button type="button" onClick={() => set({ textRubric: c.textRubric.filter((_: any, j: number) => j !== i) })} className="text-ink-300 hover:text-danger p-1"><Trash2 size={13} /></button>
+                </div>
+                <input value={r.description ?? ''} onChange={e => set({ textRubric: c.textRubric.map((x: any, j: number) => j === i ? { ...x, description: e.target.value } : x) })}
+                  placeholder="Cosa valuta questo criterio?" className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 transition" />
+              </div>
+            ))}
+            <button type="button" onClick={() => set({ textRubric: [...(c.textRubric ?? []), { key: uid(), label: '', maxScore: 25, description: '' }] })}
+              className="flex items-center gap-1.5 text-[12px] text-brand font-semibold hover:underline w-fit">
+              <Plus size={12} /> Aggiungi criterio AI
+            </button>
+          </div>
+        </Section>
+      )}
+
+      <Section title="Segnali e red flag (AI)" defaultOpen={false}>
+        <ListInput label="Segnali positivi attesi" items={c.expectedSignals ?? []} onChange={v => set({ expectedSignals: v })} placeholder="es. cita i dati specifici del foglio" />
+        <ListInput label="Red flag" items={c.redFlags ?? []} onChange={v => set({ redFlags: v })} placeholder="es. analisi generica senza numeri" />
+      </Section>
+    </div>
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export function ConfigEditor({ type, config, onChange }: { type: string; config: any; onChange: (c: any) => void }) {
   switch (type) {
@@ -466,6 +577,7 @@ export function ConfigEditor({ type, config, onChange }: { type: string; config:
     case 'notification_reaction': return <NotificationEditor config={config} onChange={onChange} />;
     case 'email_response':        return <EmailEditor config={config} onChange={onChange} />;
     case 'simulated_call':        return <SimulatedCallEditor config={config} onChange={onChange} />;
+    case 'spreadsheet_edit':      return <SpreadsheetEditEditor config={config} onChange={onChange} />;
     default:                      return <p className="text-[13px] text-ink-400">Nessun editor disponibile per questo tipo di step.</p>;
   }
 }
