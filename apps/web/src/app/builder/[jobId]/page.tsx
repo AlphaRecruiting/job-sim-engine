@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Plus, X, GripVertical, ChevronRight, Zap, CheckCircle, Trash2, AlignLeft, List, Mail, Phone, LayoutGrid } from 'lucide-react';
+import { Plus, X, GripVertical, ChevronRight, Zap, CheckCircle, Trash2, AlignLeft, List, Mail, Phone, LayoutGrid, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button, Badge, Alert } from '@/components/ui';
+import { ConfigEditor } from './ConfigEditor';
 
 type Step = {
   id: string;
@@ -11,6 +12,7 @@ type Step = {
   type: string;
   title: string;
   instructions: string;
+  config: any;
   timeLimitSeconds?: number;
 };
 
@@ -57,31 +59,36 @@ function getDefaultConfig(type: string): Record<string, unknown> {
 }
 
 function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave: (s: Step) => void }) {
-  const [form, setForm] = useState({
-    title: step.title,
-    instructions: step.instructions,
-  });
+  const [form, setForm] = useState({ title: step.title, instructions: step.instructions });
+  const [config, setConfig] = useState<any>(step.config ?? {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [aiFilling, setAiFilling] = useState(false);
 
   useEffect(() => {
-    setForm({
-      title: step.title,
-      instructions: step.instructions,
-    });
+    setForm({ title: step.title, instructions: step.instructions });
+    setConfig(step.config ?? {});
     setSaved(false);
   }, [step.id]);
 
   async function save() {
     setSaving(true);
     try {
-      await api.patch(`/api/simulations/${simId}/steps/${step.id}`, form);
-      onSave({ ...step, ...form });
+      await api.patch(`/api/simulations/${simId}/steps/${step.id}`, { ...form, config });
+      onSave({ ...step, ...form, config });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
+  }
+
+  async function aiFill() {
+    setAiFilling(true);
+    try {
+      const result = await api.post<{ config: any }>(`/api/simulations/${simId}/steps/${step.id}/ai-fill`, {});
+      setConfig(result.config);
+    } catch (e: any) {
+      // silently fail - user can retry
+    } finally { setAiFilling(false); }
   }
 
   const color = MODULE_COLORS[step.type] ?? 'bg-ink-100 text-ink-700';
@@ -89,12 +96,21 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
 
   return (
     <div className="flex flex-col h-full">
-      {/* Editor header */}
-      <div className="px-7 pt-6 pb-4 border-b border-ink-100 flex items-center gap-3">
+      {/* Header */}
+      <div className="px-7 pt-6 pb-4 border-b border-ink-100 flex items-center justify-between">
         <span className={`inline-flex items-center gap-1.5 text-[12px] font-semibold px-2.5 py-1 rounded-lg ${color}`}>
           {icon}
           {MODULE_LABELS[step.type] ?? step.type}
         </span>
+        <button
+          type="button"
+          onClick={aiFill}
+          disabled={aiFilling}
+          className="flex items-center gap-1.5 text-[12px] font-semibold text-ink-600 border border-ink-200 rounded-lg px-3 py-1.5 hover:bg-ink-50 disabled:opacity-50 transition-colors"
+        >
+          <Sparkles size={13} className={aiFilling ? 'animate-pulse' : ''} />
+          {aiFilling ? 'Generazione AI…' : 'Compila con AI'}
+        </button>
       </div>
 
       {/* Fields */}
@@ -114,22 +130,30 @@ function StepEditor({ step, simId, onSave }: { step: Step; simId: string; onSave
           <textarea
             value={form.instructions}
             onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))}
-            rows={8}
+            rows={4}
             className="w-full border border-ink-200 rounded-xl px-4 py-3 text-[14px] text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition resize-y leading-relaxed"
             placeholder="Descrivi il contesto e cosa il candidato deve fare..."
           />
         </div>
 
+        {/* Type-specific config */}
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-px flex-1 bg-ink-100" />
+            <span className="text-[11px] font-bold text-ink-400 uppercase tracking-widest">Configurazione step</span>
+            <div className="h-px flex-1 bg-ink-100" />
+          </div>
+          <ConfigEditor type={step.type} config={config} onChange={setConfig} />
+        </div>
       </div>
 
       {/* Footer */}
       <div className="px-7 py-4 border-t border-ink-100 flex items-center justify-between bg-white">
-        {saved && (
+        {saved ? (
           <span className="flex items-center gap-1.5 text-[13px] text-success font-medium">
             <CheckCircle size={14} /> Salvato
           </span>
-        )}
-        {!saved && <span />}
+        ) : <span />}
         <Button size="sm" onClick={save} disabled={saving}>
           {saving ? 'Salvataggio…' : 'Salva modifiche'}
         </Button>
