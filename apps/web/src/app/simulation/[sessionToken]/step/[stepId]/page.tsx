@@ -158,10 +158,16 @@ function StepRenderer({ type, config, answer, onAnswerChange, onTrackEvent }: { 
     case 'multiple_choice': return <MultipleChoiceRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'free_text': return <FreeTextRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'email_response': return <EmailResponseRenderer config={config} answer={answer} onChange={onAnswerChange} />;
-    case 'crm_prioritization': return <CrmPrioritizationRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />;
-    case 'notification_reaction': return <NotificationReactionRenderer config={config} answer={answer} onChange={onAnswerChange} />;
+    case 'crm_prioritization': return config.records?.[0]?.activities || config.records?.[0]?.sector
+      ? <RichCrmRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />
+      : <CrmPrioritizationRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />;
+    case 'notification_reaction': return config.workspace
+      ? <SlackWorkspaceRenderer config={config} answer={answer} onChange={onAnswerChange} />
+      : <NotificationReactionRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'simulated_call': return <SimulatedCallRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />;
-    case 'welcome': return <WelcomeRenderer config={config} answer={answer} onChange={onAnswerChange} />;
+    case 'welcome': return config.slides?.length
+      ? <TtsSlidesRenderer config={config} answer={answer} onChange={onAnswerChange} />
+      : <WelcomeRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'spreadsheet_edit': return <SpreadsheetEditRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     default: return <div className="text-gray-500">Unknown step type: {type}</div>;
   }
@@ -802,6 +808,585 @@ function SpreadsheetEditRenderer({ config, answer, onChange }: any) {
           <p className="text-sm text-gray-600 text-center">Quando hai compilato tutte le celle, clicca <strong>Avanti</strong> qui sotto per inviare le tue risposte.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── TTS Slide Presenter ───────────────────────────────────────────────────────
+function TtsSlidesRenderer({ config, answer, onChange }: any) {
+  const slides: { text: string; html?: string }[] = config.slides ?? [];
+  const persona = config.persona ?? { name: config.founderName ?? 'Presenter', title: config.founderRole };
+  const [current, setCurrent] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [audioCache, setAudioCache] = useState<(HTMLAudioElement | null)[]>(Array(slides.length).fill(null));
+  const [started, setStarted] = useState(false);
+  const startTime = useMemo(() => Date.now(), []);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  async function fetchAudio(idx: number): Promise<HTMLAudioElement | null> {
+    if (audioCache[idx]) return audioCache[idx];
+    const slide = slides[idx];
+    try {
+      const res = await fetch('/api/candidate/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: slide.text, voice: persona.voice ?? 'ash', voiceInstructions: persona.voiceInstructions }),
+      });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      await new Promise<void>(r => { audio.onloadedmetadata = () => r(); audio.onerror = () => r(); });
+      setAudioCache(prev => { const next = [...prev]; next[idx] = audio; return next; });
+      return audio;
+    } catch { return null; }
+  }
+
+  async function playSlide(idx: number) {
+    setPlaying(true);
+    const audio = await fetchAudio(idx);
+    audioRef.current = audio;
+    if (audio) {
+      await new Promise<void>(r => {
+        audio.onended = () => r();
+        audio.onerror = () => r();
+        audio.play().catch(() => r());
+      });
+    } else {
+      await new Promise<void>(r => setTimeout(r, 3500));
+    }
+    setPlaying(false);
+
+    const spent = Math.round((Date.now() - startTime) / 1000);
+    onChange({ acknowledged: true, timeSpentSeconds: spent, slidesCompleted: idx + 1 });
+
+    if (idx + 1 < slides.length) {
+      setCurrent(idx + 1);
+      // Preload next+1
+      fetchAudio(idx + 2).catch(() => {});
+    }
+  }
+
+  async function start() {
+    setStarted(true);
+    // Preload first two slides
+    fetchAudio(0);
+    fetchAudio(1);
+    await new Promise(r => setTimeout(r, 300));
+    playSlide(0);
+  }
+
+  const slide = slides[current];
+  const initials = persona.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() ?? 'P';
+  const isLast = current === slides.length - 1 && !playing;
+
+  if (!started) {
+    return (
+      <div className="min-h-[300px] flex flex-col items-center justify-center gap-6 py-10">
+        <div className="text-center space-y-2">
+          {persona.photoUrl
+            ? <img src={persona.photoUrl} alt={persona.name} className="w-20 h-20 rounded-full mx-auto object-cover border-4 border-white shadow-lg" />
+            : <div className="w-20 h-20 rounded-full bg-indigo-600 flex items-center justify-center mx-auto text-white text-2xl font-bold shadow-lg">{initials}</div>
+          }
+          <p className="font-bold text-gray-900">{persona.name}</p>
+          {persona.title && <p className="text-sm text-gray-500">{persona.title}</p>}
+        </div>
+        <button onClick={start} className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center gap-2 shadow-md">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" strokeWidth={0}/></svg>
+          Inizia presentazione
+        </button>
+        <p className="text-xs text-gray-400">{slides.length} slide · con audio</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Persona header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-gray-50">
+          {persona.photoUrl
+            ? <img src={persona.photoUrl} alt={persona.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+            : <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{initials}</div>
+          }
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-gray-900">{persona.name}</p>
+            {persona.title && <p className="text-xs text-gray-500">{persona.title}</p>}
+          </div>
+          {/* Audio wave */}
+          {playing && (
+            <div className="flex items-end gap-0.5 h-5">
+              {[3, 5, 8, 5, 3, 7, 4].map((h, i) => (
+                <div key={i} className="w-1 rounded-full bg-indigo-500 animate-pulse" style={{ height: `${h * 2}px`, animationDelay: `${i * 0.1}s` }} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Slide caption */}
+        <div className="px-6 py-8 min-h-[140px] flex items-center">
+          <p className="text-lg text-gray-800 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: slide?.html ?? slide?.text ?? '' }} />
+        </div>
+
+        {/* Dots */}
+        <div className="flex justify-center gap-1.5 pb-5">
+          {slides.map((_, i) => (
+            <div key={i} className={`rounded-full transition-all duration-300 ${i === current ? 'w-5 h-2 bg-indigo-600' : i < current ? 'w-2 h-2 bg-indigo-300' : 'w-2 h-2 bg-gray-200'}`} />
+          ))}
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-400">{current + 1} / {slides.length}</span>
+        {isLast ? (
+          <span className="text-xs text-green-600 font-semibold">✓ Presentazione completata</span>
+        ) : !playing ? (
+          <button onClick={() => playSlide(current)} className="text-sm text-indigo-600 font-semibold hover:underline">
+            Avanti →
+          </button>
+        ) : (
+          <span className="text-xs text-gray-400 animate-pulse">In riproduzione...</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Slack Workspace Renderer ──────────────────────────────────────────────────
+type SlackMsg = { id: string; memberId: string; memberName: string; memberInitials: string; memberColor: string; text: string; channel: string; time: string; grouped?: boolean };
+
+function SlackWorkspaceRenderer({ config, answer, onChange }: any) {
+  const workspace = config.workspace ?? { name: 'Workspace' };
+  const channels: { id: string; name: string; topic: string }[] = config.channels ?? [{ id: 'welcome', name: 'welcome', topic: 'Benvenuto nel team' }];
+  const members: any[] = config.teamMembers ?? [];
+  const welcomeSeq: { memberId: string; text: string; channel: string; delayMs?: number }[] = config.welcomeSequence ?? [];
+  const maxReplies: number = config.maxRepliesPerChannel ?? 3;
+
+  const [activeChannel, setActiveChannel] = useState(channels[0]?.id ?? 'welcome');
+  const [messages, setMessages] = useState<Record<string, SlackMsg[]>>({});
+  const [unread, setUnread] = useState<Record<string, number>>({});
+  const [input, setInput] = useState('');
+  const [typing, setTyping] = useState('');
+  const [replyCounts, setReplyCounts] = useState<Record<string, number>>({});
+  const [seqDone, setSeqDone] = useState(false);
+  const [ctaVisible, setCtaVisible] = useState(false);
+  const startTime = useMemo(() => Date.now(), []);
+  const msgsSentRef = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  function now() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function getMember(id: string) {
+    return members.find(m => m.id === id) ?? { id, name: id, initials: id.slice(0, 2).toUpperCase(), color: 'linear-gradient(135deg,#6366f1,#7c3aed)', role: '' };
+  }
+
+  function addMsg(msg: SlackMsg) {
+    setMessages(prev => {
+      const ch = prev[msg.channel] ?? [];
+      const grouped = ch.length > 0 && ch[ch.length - 1].memberId === msg.memberId;
+      return { ...prev, [msg.channel]: [...ch, { ...msg, grouped }] };
+    });
+    if (msg.channel !== activeChannel) {
+      setUnread(prev => ({ ...prev, [msg.channel]: (prev[msg.channel] ?? 0) + 1 }));
+    }
+    setTimeout(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); }, 50);
+  }
+
+  // Play welcome sequence on mount
+  useEffect(() => {
+    async function runSeq() {
+      for (const msg of welcomeSeq) {
+        const m = getMember(msg.memberId);
+        const delay = msg.delayMs ?? 1200;
+        const typingMs = Math.min(2000, Math.max(700, msg.text.length * 18));
+        await new Promise(r => setTimeout(r, delay));
+        setTyping(`${m.name.split(' ')[0]} sta scrivendo…`);
+        await new Promise(r => setTimeout(r, typingMs));
+        setTyping('');
+        addMsg({ id: Math.random().toString(36).slice(2), memberId: m.id, memberName: m.name, memberInitials: m.initials ?? m.name.slice(0, 2).toUpperCase(), memberColor: m.color ?? 'linear-gradient(135deg,#6366f1,#7c3aed)', text: msg.text, channel: msg.channel, time: now() });
+      }
+      setSeqDone(true);
+      await new Promise(r => setTimeout(r, 600));
+      setCtaVisible(true);
+      onChange({ acknowledged: true, timeSpentSeconds: Math.round((Date.now() - startTime) / 1000), messagesSent: 0 });
+    }
+    runSeq();
+  }, []);
+
+  async function sendMessage() {
+    if (!input.trim() || !seqDone) return;
+    const text = input.trim();
+    setInput('');
+    msgsSentRef.current++;
+    // Add candidate message
+    addMsg({ id: Math.random().toString(36).slice(2), memberId: 'candidate', memberName: 'Tu', memberInitials: 'TU', memberColor: 'linear-gradient(135deg,#3b82f6,#2563eb)', text, channel: activeChannel, time: now() });
+    onChange({ acknowledged: true, timeSpentSeconds: Math.round((Date.now() - startTime) / 1000), messagesSent: msgsSentRef.current });
+
+    const chReplies = replyCounts[activeChannel] ?? 0;
+    if (chReplies >= maxReplies) return;
+
+    // Find a team member to reply
+    const chMsgs = messages[activeChannel] ?? [];
+    const lastTeamMsg = [...chMsgs].reverse().find(m => m.memberId !== 'candidate');
+    const responder = lastTeamMsg ? getMember(lastTeamMsg.memberId) : members[0];
+    if (!responder) return;
+
+    setReplyCounts(prev => ({ ...prev, [activeChannel]: (prev[activeChannel] ?? 0) + 1 }));
+    const typingMs = Math.min(2200, Math.max(800, text.length * 20));
+    setTyping(`${responder.name.split(' ')[0]} sta scrivendo…`);
+
+    try {
+      const history = (messages[activeChannel] ?? []).slice(-8).map(m => ({ sender: m.memberId === 'candidate' ? 'candidate' : m.memberId, content: m.text }));
+      const res = await fetch('/api/candidate/workspace-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: responder.id, characterConfig: responder, message: text, history }),
+      });
+      const data = await res.json();
+      await new Promise(r => setTimeout(r, typingMs));
+      setTyping('');
+      const blocks: string[] = (data.reply ?? '').split('\n\n').map((b: string) => b.trim()).filter(Boolean);
+      for (const block of blocks) {
+        addMsg({ id: Math.random().toString(36).slice(2), memberId: responder.id, memberName: responder.name, memberInitials: responder.initials ?? responder.name.slice(0, 2).toUpperCase(), memberColor: responder.color ?? 'linear-gradient(135deg,#6366f1,#7c3aed)', text: block, channel: activeChannel, time: now() });
+        if (blocks.length > 1) await new Promise(r => setTimeout(r, 500));
+      }
+    } catch {
+      await new Promise(r => setTimeout(r, typingMs));
+      setTyping('');
+      addMsg({ id: Math.random().toString(36).slice(2), memberId: responder.id, memberName: responder.name, memberInitials: responder.initials ?? responder.name.slice(0, 2).toUpperCase(), memberColor: responder.color ?? 'linear-gradient(135deg,#6366f1,#7c3aed)', text: 'Scusa, sono in riunione — ci sentiamo dopo!', channel: activeChannel, time: now() });
+    }
+  }
+
+  const activeMsgs = messages[activeChannel] ?? [];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex" style={{ height: '520px' }}>
+      {/* Sidebar */}
+      <aside className="w-52 flex-shrink-0 bg-[#1a1d21] flex flex-col">
+        <div className="px-3 py-3 border-b border-white/10">
+          <span className="text-white font-bold text-sm">{workspace.name}</span>
+          <div className="flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-green-400" /><span className="text-[11px] text-gray-400">Online</span></div>
+        </div>
+        <div className="flex-1 overflow-y-auto py-2">
+          <p className="text-[10px] font-bold text-gray-400 uppercase px-3 mb-1">Canali</p>
+          {channels.map(ch => (
+            <button key={ch.id} onClick={() => { setActiveChannel(ch.id); setUnread(p => ({ ...p, [ch.id]: 0 })); }}
+              className={`w-full text-left flex items-center gap-1.5 px-3 py-1 text-[13px] transition ${activeChannel === ch.id ? 'bg-[#1164A3] text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
+              <span className="opacity-60">#</span>
+              <span className="flex-1 truncate">{ch.name}</span>
+              {(unread[ch.id] ?? 0) > 0 && <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{unread[ch.id]}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="px-3 py-2 border-t border-white/10 flex items-center gap-2">
+          <div className="w-7 h-7 rounded-sm bg-blue-500 flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">TU</div>
+          <span className="text-[12px] text-gray-300 truncate">Tu</span>
+          <div className="w-2 h-2 rounded-full bg-green-400 ml-auto flex-shrink-0" />
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 bg-white">
+          <span className="text-gray-400 font-semibold">#</span>
+          <span className="font-bold text-gray-900 text-sm">{channels.find(c => c.id === activeChannel)?.name ?? activeChannel}</span>
+          {channels.find(c => c.id === activeChannel)?.topic && (
+            <span className="text-xs text-gray-400 border-l border-gray-200 pl-2 truncate">{channels.find(c => c.id === activeChannel)?.topic}</span>
+          )}
+        </div>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-1 bg-white">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-gray-100" />
+            <span className="text-[11px] text-gray-400">Oggi</span>
+            <div className="flex-1 h-px bg-gray-100" />
+          </div>
+          {activeMsgs.map(msg => (
+            <div key={msg.id} className={`flex gap-2 ${msg.grouped ? 'ml-9' : ''}`}>
+              {!msg.grouped && (
+                <div className="w-8 h-8 rounded-sm flex-shrink-0 flex items-center justify-center text-white text-[11px] font-bold mt-0.5" style={{ background: msg.memberColor }}>{msg.memberInitials}</div>
+              )}
+              <div className="flex-1 min-w-0">
+                {!msg.grouped && (
+                  <div className="flex items-baseline gap-2 mb-0.5">
+                    <span className="text-[13px] font-bold text-gray-900">{msg.memberName}</span>
+                    <span className="text-[10px] text-gray-400">{msg.time}</span>
+                  </div>
+                )}
+                <p className="text-[13px] text-gray-800 leading-relaxed">{msg.text}</p>
+              </div>
+            </div>
+          ))}
+          {typing && (
+            <div className="flex items-center gap-2 text-[12px] text-gray-400 pl-10">
+              <div className="flex gap-0.5">
+                {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
+              </div>
+              {typing}
+            </div>
+          )}
+          {ctaVisible && config.ctaLabel && (
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-3">
+              <span className="text-xl">📋</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-800">Prossimo step</p>
+                <p className="text-xs text-blue-600">{config.ctaLabel}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="px-4 py-3 border-t border-gray-200">
+          <div className="flex items-center gap-2 border border-gray-300 rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder={`Scrivi un messaggio in #${channels.find(c => c.id === activeChannel)?.name ?? activeChannel}…`}
+              disabled={!seqDone}
+              className="flex-1 text-[13px] outline-none bg-transparent placeholder:text-gray-400"
+            />
+            <button onClick={sendMessage} disabled={!input.trim() || !seqDone}
+              className="text-blue-500 hover:text-blue-600 disabled:opacity-30 transition">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ─── Rich CRM Renderer (3-column) ─────────────────────────────────────────────
+function RichCrmRenderer({ config, answer, onChange, onTrackEvent }: any) {
+  const records: any[] = config.records ?? [];
+  const maxItems: number = config.maxRankedItems ?? records.length;
+  const timerSecs: number = config.timeLimitSeconds ?? 900;
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [priorityOrder, setPriorityOrder] = useState<string[]>(answer?.orderedRecordIds ?? []);
+  const [explanation, setExplanation] = useState(answer?.explanation ?? '');
+  const [notes, setNotes] = useState<Record<string, string>>(answer?.leadNotes ?? {});
+  const [timeLeft, setTimeLeft] = useState(timerSecs);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const t = setTimeout(() => setTimeLeft(t => t - 1), 1000);
+    return () => clearTimeout(t);
+  }, [timeLeft]);
+
+  function emitAnswer(order: string[], expl: string, ns: Record<string, string>) {
+    onChange({ orderedRecordIds: order, explanation: expl, leadNotes: ns });
+  }
+
+  function togglePriority(id: string) {
+    setPriorityOrder(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : prev.length < maxItems ? [...prev, id] : prev;
+      emitAnswer(next, explanation, notes);
+      return next;
+    });
+  }
+
+  function toggleSection(key: string) {
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  const selectedRecord = records.find(r => r.id === selectedId);
+  const timerM = Math.floor(timeLeft / 60);
+  const timerS = timeLeft % 60;
+  const timerDanger = timeLeft <= 120;
+  const timerWarning = timeLeft <= 300 && !timerDanger;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ minHeight: '600px' }}>
+      {/* Topbar */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span className="font-semibold text-gray-900">Pipeline</span>
+          <span>›</span><span className="text-gray-700">Inbound</span>
+        </div>
+        <div className={`flex items-center gap-1.5 text-sm font-mono font-semibold px-3 py-1 rounded-lg ${timerDanger ? 'bg-red-100 text-red-600' : timerWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          {timerM}:{String(timerS).padStart(2, '0')}
+        </div>
+      </div>
+
+      <div className="flex" style={{ minHeight: '555px' }}>
+        {/* Left: Priority panel */}
+        <aside className="w-48 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
+          <div className="px-3 py-3 border-b border-gray-200">
+            <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Priorità Inbound</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">{priorityOrder.length} / {maxItems} selezionati</p>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+            {Array.from({ length: maxItems }).map((_, i) => {
+              const lead = records.find(r => r.id === priorityOrder[i]);
+              return (
+                <div key={i} className={`rounded-lg border px-2 py-1.5 ${lead ? 'border-blue-200 bg-blue-50' : 'border-dashed border-gray-200 bg-white'}`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold ${lead ? 'text-blue-600' : 'text-gray-300'}`}>#{i + 1}</span>
+                    {lead ? (
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-semibold text-gray-800 truncate">{lead.company}</p>
+                        <p className="text-[10px] text-gray-500 truncate">{lead.displayName}</p>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-gray-300">Slot libero</span>
+                    )}
+                    {lead && (
+                      <button onClick={() => togglePriority(lead.id)} className="text-gray-300 hover:text-red-400 transition flex-shrink-0">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-2 py-2 border-t border-gray-200">
+            <textarea
+              placeholder="Spiega il criterio di prioritizzazione..."
+              value={explanation}
+              rows={3}
+              onChange={e => { setExplanation(e.target.value); emitAnswer(priorityOrder, e.target.value, notes); }}
+              className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
+            />
+          </div>
+        </aside>
+
+        {/* Center: Lead list */}
+        <main className="flex-1 flex flex-col min-w-0 border-r border-gray-200">
+          <div className="px-4 py-2.5 border-b border-gray-100">
+            <h2 className="text-sm font-bold text-gray-900">Lead Inbound</h2>
+            <p className="text-[11px] text-gray-400">{records.length} lead</p>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {records.map(r => {
+              const initials = r.displayName?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() ?? '??';
+              const rank = priorityOrder.indexOf(r.id);
+              const isSelected = r.id === selectedId;
+              return (
+                <button key={r.id} onClick={() => setSelectedId(r.id)}
+                  className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-gray-100 transition ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'}`}>
+                  <div className="relative flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: r.avatarColor ?? 'linear-gradient(135deg,#6366f1,#7c3aed)' }}>{initials}</div>
+                    {rank >= 0 && <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center">{rank + 1}</div>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-900 truncate">{r.displayName}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{r.company}</p>
+                    {r.source && <p className="text-[10px] text-gray-400">{r.source.icon} {r.source.type}</p>}
+                  </div>
+                  {r.signalStrength && (
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${r.signalStrength === 'alto' ? 'bg-green-100 text-green-700' : r.signalStrength === 'medio' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {r.signalStrength}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </main>
+
+        {/* Right: Lead detail */}
+        <aside className="w-72 flex-shrink-0 flex flex-col overflow-y-auto">
+          {!selectedRecord ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 text-gray-300 p-6">
+              <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <p className="text-[12px] text-center">Seleziona un lead per i dettagli</p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold" style={{ background: selectedRecord.avatarColor ?? 'linear-gradient(135deg,#6366f1,#7c3aed)' }}>
+                    {selectedRecord.displayName?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-gray-900 truncate">{selectedRecord.displayName}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{selectedRecord.contactRole}</p>
+                  </div>
+                </div>
+                <p className="text-[13px] font-semibold text-gray-800">{selectedRecord.company}</p>
+                {selectedRecord.sector && <p className="text-[11px] text-gray-500">{selectedRecord.source?.icon} {selectedRecord.source?.type} · {selectedRecord.sector}</p>}
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                  {selectedRecord.contactEmail && <span className="text-[10px] text-gray-500">📧 {selectedRecord.contactEmail}</span>}
+                  {selectedRecord.contactPhone && <span className="text-[10px] text-gray-500">📞 {selectedRecord.contactPhone}</span>}
+                </div>
+                <div className="mt-2">
+                  <button onClick={() => togglePriority(selectedRecord.id)}
+                    className={`text-[11px] font-semibold px-3 py-1 rounded-lg transition ${priorityOrder.includes(selectedRecord.id) ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                    {priorityOrder.includes(selectedRecord.id) ? `✓ #${priorityOrder.indexOf(selectedRecord.id) + 1} in lista` : '+ Aggiungi priorità'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Collapsible sections */}
+              {[
+                { key: 'info', title: 'Informazioni azienda', content: (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                    {[['Settore', selectedRecord.sector], ['Dipendenti', selectedRecord.employees], ['Fatturato', selectedRecord.revenue], ['Sede', selectedRecord.location], ['Fondazione', selectedRecord.founded], ['Sito', selectedRecord.website]].map(([l, v]) => v ? (
+                      <div key={l as string}><p className="text-gray-400 font-semibold">{l}</p><p className="text-gray-700">{String(v)}</p></div>
+                    ) : null)}
+                    {(selectedRecord.missingInfo ?? []).length > 0 && (
+                      <div className="col-span-2 mt-1 bg-yellow-50 border border-yellow-200 rounded-lg p-2">
+                        <p className="text-[10px] font-bold text-yellow-700 mb-1">Informazioni mancanti</p>
+                        {(selectedRecord.missingInfo ?? []).map((m: string, i: number) => <p key={i} className="text-[10px] text-yellow-600">• {m}</p>)}
+                      </div>
+                    )}
+                  </div>
+                ) },
+                { key: 'signals', title: 'Segnali & Attività', content: (
+                  <div className="space-y-2">
+                    {(selectedRecord.activities ?? []).map((a: any, i: number) => (
+                      <div key={i} className="flex gap-2">
+                        <span className="text-base flex-shrink-0">{a.icon}</span>
+                        <div><p className="text-[11px] text-gray-700">{a.text}</p><p className="text-[10px] text-gray-400">{a.date}</p></div>
+                      </div>
+                    ))}
+                    {selectedRecord.formNote && <div className="bg-blue-50 border border-blue-100 rounded-lg p-2 text-[11px] text-blue-700 italic">{selectedRecord.formNote}</div>}
+                  </div>
+                ) },
+                { key: 'interactions', title: 'Interazioni precedenti', content: (
+                  (selectedRecord.interactions ?? []).length > 0
+                    ? (selectedRecord.interactions ?? []).map((i: any, idx: number) => (
+                      <div key={idx} className="flex gap-2"><span className="text-base">📌</span><div><p className="text-[11px] text-gray-700">{i.text}</p><p className="text-[10px] text-gray-400">{i.date}</p></div></div>
+                    ))
+                    : <p className="text-[11px] text-gray-400">Nessuna interazione registrata</p>
+                ) },
+                { key: 'notes', title: 'Note', content: (
+                  <textarea
+                    value={notes[selectedRecord.id] ?? ''}
+                    onChange={e => { const n = { ...notes, [selectedRecord.id]: e.target.value }; setNotes(n); emitAnswer(priorityOrder, explanation, n); }}
+                    placeholder="Aggiungi note su questo lead..."
+                    rows={3}
+                    className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
+                  />
+                ) },
+              ].map(({ key, title, content }) => (
+                <div key={key} className="border-b border-gray-100">
+                  <button onClick={() => toggleSection(`${selectedRecord.id}-${key}`)} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition">
+                    <span className="text-[12px] font-semibold text-gray-700">{title}</span>
+                    <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expandedSections[`${selectedRecord.id}-${key}`] ? '' : '-rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {expandedSections[`${selectedRecord.id}-${key}`] && (
+                    <div className="px-4 pb-3">{content}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }
