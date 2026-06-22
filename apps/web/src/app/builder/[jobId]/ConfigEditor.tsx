@@ -641,6 +641,16 @@ function SimulatedCallEditor({ config, onChange, errors = new Set<string>() }: {
         <Textarea value={c.publicCandidateBrief ?? ''} onChange={v => set({ publicCandidateBrief: v })} rows={4} placeholder="Descrivi il contesto che il candidato vedrà prima della chiamata..." error={errors.has('publicCandidateBrief') && !c.publicCandidateBrief?.trim()} />
       </Section>
 
+      <Section title="Collega al lead #1 del CRM">
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input type="checkbox" checked={!!c.crmLink} onChange={e => set({ crmLink: e.target.checked })} className="rounded border-ink-300 text-brand" />
+          <span className="text-[13px] text-ink-700">Usa automaticamente il lead #1 rankedato nel CRM come interlocutore della chiamata</span>
+        </label>
+        {c.crmLink && (
+          <p className="text-[12px] text-ink-400 mt-1">Nome, azienda e ruolo del lead verranno sovrascritti a runtime. Configura comunque la persona qui sotto come fallback.</p>
+        )}
+      </Section>
+
       <Section title="Persona AI (acquirente/interlocutore)" error={errors.has('aiPersona')}>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Nome" error={errors.has('aiPersona') && !c.aiPersona?.name?.trim()}><Inp value={c.aiPersona?.name ?? ''} onChange={v => setPersona({ name: v })} placeholder="Alex Martinez" error={errors.has('aiPersona') && !c.aiPersona?.name?.trim()} /></Field>

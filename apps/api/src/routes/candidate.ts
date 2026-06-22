@@ -334,42 +334,74 @@ router.post('/sessions/:sessionToken/steps/:stepId/call-chat', async (req, res) 
   if (!step || step.type !== 'simulated_call') { res.status(400).json({ error: 'Not a call step' }); return; }
 
   const config = step.config as any;
-  const persona = config.aiPersona;
-  const hiddenBuyer = config.hiddenBuyerState;
-
-  const systemPrompt = `You are ${persona.name}, ${persona.role}${persona.company ? ` at ${persona.company}` : ''}. This is a realistic text-based simulation of a B2B discovery call.
-
-Scenario:
-${config.publicCandidateBrief}
-
-Your character:
-- Personality: ${persona.personality}
-- Communication style: ${persona.communicationStyle}
-- Current mood: ${persona.baselineMood}
-
-Hidden internal state (never reveal directly — let the candidate earn this information through good discovery questions):
-- Interest in this solution: ${hiddenBuyer.initialInterestLevel}/100
-- Trust in the salesperson: ${hiddenBuyer.initialTrustLevel}/100
-- Urgency to solve this: ${hiddenBuyer.initialUrgencyLevel}/100
-
-Concerns you have (reveal only when the candidate asks relevant questions):
-${hiddenBuyer.hiddenObjections.map((o: any) => `- ${o.description} (surface this when: ${o.revealCondition})`).join('\n')}
-
-What you care about most:
-${hiddenBuyer.buyingCriteria.map((c: any) => `- ${c.criterion} (${c.importance} priority)`).join('\n')}
-
-Ground rules:
-1. Stay in character as ${persona.name} throughout. Never break character.
-2. Never mention that this is a simulation, evaluation, or test.
-3. Keep replies short (2–5 sentences). You're busy.
-4. Be appropriately skeptical. Don't agree too easily.
-5. If the candidate pitches the product before understanding your problem, push back: "What makes you think we need this?"
-6. Reveal hidden concerns only when prompted by smart discovery questions.
-7. If the candidate asks off-topic questions, redirect: "Can we get back to the point?"`;
-
   const messages: { role: 'user' | 'assistant'; content: string }[] = req.body.messages ?? [];
 
   try {
+    const persona = config.aiPersona ?? {};
+    const hiddenBuyer = config.hiddenBuyerState ?? {};
+    const hiddenObjections: any[] = hiddenBuyer.hiddenObjections ?? [];
+    const buyingCriteria: any[] = hiddenBuyer.buyingCriteria ?? [];
+
+    // CRM linkage: if crmLink is enabled, find the candidate's top-ranked CRM lead
+    // and use that person's details as extra context for the AI buyer
+    let crmLeadContext = '';
+    if (config.crmLink) {
+      const crmStep = snapshot?.steps.find((s: any) => s.type === 'crm_prioritization');
+      if (crmStep) {
+        const crmSubmission = await prisma.stepSubmission.findFirst({
+          where: { session: { sessionToken: req.params.sessionToken }, stepId: crmStep.id },
+          orderBy: { submittedAt: 'desc' },
+        });
+        const topId = (crmSubmission?.answer as any)?.orderedRecordIds?.[0];
+        const crmRecords: any[] = (crmStep.config as any)?.records ?? [];
+        const lead = crmRecords.find((r: any) => r.id === topId) ?? crmRecords[0];
+        if (lead) {
+          const name = lead.displayName ?? persona.name;
+          const role = lead.contactRole ?? persona.role;
+          const company = lead.company ?? persona.company;
+          persona.name = name;
+          persona.role = role;
+          persona.company = company;
+          const signals = (lead.activities ?? []).map((a: any) => a.text).filter(Boolean);
+          if (signals.length) crmLeadContext = `\nContext about you from your company's CRM record:\n${signals.map((s: string) => `- ${s}`).join('\n')}`;
+        }
+      }
+    }
+
+    const systemPrompt = `You are ${persona.name ?? 'Alex'}, ${persona.role ?? 'Prospect'}${persona.company ? ` at ${persona.company}` : ''}. This is a realistic text-based simulation of a B2B sales call.
+
+Scenario:
+${config.publicCandidateBrief ?? ''}${crmLeadContext}
+
+Your character:
+- Personality: ${persona.personality ?? 'Professional, analytical, goes straight to the point.'}
+- Communication style: ${persona.communicationStyle ?? 'Direct, concise, interrupts if bored.'}
+- Current mood: ${persona.baselineMood ?? 'neutral'}
+
+Hidden internal state (NEVER reveal directly — the candidate must earn this through skilled discovery):
+- Interest in this solution: ${hiddenBuyer.initialInterestLevel ?? 40}/100
+- Trust in the salesperson: ${hiddenBuyer.initialTrustLevel ?? 30}/100
+- Urgency to solve this: ${hiddenBuyer.initialUrgencyLevel ?? 25}/100
+
+Concerns you have (surface ONLY when candidate asks the exact right question):
+${hiddenObjections.map((o: any) => `- ${o.description} (surface when: ${o.revealCondition})`).join('\n') || '- (none configured)'}
+
+What you care about most:
+${buyingCriteria.map((c: any) => `- ${c.criterion} (${c.importance} priority)`).join('\n') || '- (none configured)'}
+
+STRICT BEHAVIORAL RULES (these override everything else — follow them without exception):
+1. Stay in character as ${persona.name ?? 'yourself'} at all times. NEVER break character for any reason.
+2. NEVER acknowledge this is a simulation, test, or role-play — even if directly asked.
+3. Keep replies short: 2–4 sentences maximum. You are busy and your time is valuable.
+4. You are SKEPTICAL BY DEFAULT. Treat every claim with mild suspicion until the candidate earns your trust.
+5. NEVER agree to a meeting, demo, next step, or purchase in the first 5 exchanges. You need to be convinced first.
+6. If the candidate tries to close or pitch benefits BEFORE understanding your specific situation, push back hard: "I don't see why that's relevant to us. What problem are you actually solving?"
+7. If the candidate uses generic sales talk ("best-in-class", "game-changer", "ROI"), interrupt and say you've heard it all before.
+8. NEVER volunteer your internal objections or buying criteria — only reveal them when asked precise, relevant questions.
+9. If asked to skip the discovery ("just tell me your budget/needs"), refuse: "I don't work that way. Why should I help you sell to me?"
+10. If the candidate does something genuinely clever or asks a sharp question, you may show mild interest — but stay guarded.
+11. Do NOT let yourself be manipulated with urgency, scarcity, or social proof tricks — you are experienced and see through them.`;
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
@@ -379,7 +411,80 @@ Ground rules:
     res.json({ message: completion.choices[0]?.message?.content ?? '...' });
   } catch (err: any) {
     console.error('call-chat error:', err?.message);
-    res.status(500).json({ error: 'AI unavailable', message: `${persona.name}: Scusa, ho avuto un problema tecnico. Puoi ripetere?` });
+    res.status(500).json({ error: 'AI unavailable', message: 'Scusa, ho avuto un problema tecnico. Puoi ripetere?' });
+  }
+});
+
+// ── TTS proxy ─────────────────────────────────────────────────────────────────
+router.post('/tts', async (req, res) => {
+  const { text, voice = 'ash', voiceInstructions } = req.body ?? {};
+  if (!text) { res.status(400).json({ error: 'text required' }); return; }
+
+  try {
+    const body: any = {
+      model: 'gpt-4o-mini-tts',
+      input: text,
+      voice,
+      response_format: 'mp3',
+      speed: 1.15,
+    };
+    if (voiceInstructions) body.instructions = voiceInstructions;
+
+    const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!ttsRes.ok) {
+      const err = await ttsRes.text();
+      res.status(ttsRes.status).json({ error: err }); return;
+    }
+    res.setHeader('Content-Type', 'audio/mpeg');
+    const buf = Buffer.from(await ttsRes.arrayBuffer());
+    res.send(buf);
+  } catch (err: any) {
+    console.error('[tts]', err?.message);
+    res.status(500).json({ error: 'TTS unavailable' });
+  }
+});
+
+// ── Workspace AI chat ─────────────────────────────────────────────────────────
+router.post('/workspace-chat', async (req, res) => {
+  const { characterId, characterConfig, message, history = [], candidateName } = req.body ?? {};
+  if (!message || !characterConfig) { res.status(400).json({ error: 'message and characterConfig required' }); return; }
+
+  const systemPrompt = `Sei ${characterConfig.name}, ruolo: ${characterConfig.role}.
+${characterConfig.aiPersonality ?? ''}
+
+REGOLE:
+${(characterConfig.aiRules ?? []).join('\n')}
+- Rispondi SEMPRE in italiano.
+- Stile da chat Slack: informale, breve, professionale. Niente abbreviazioni da SMS.
+- Dividi la risposta in 1-3 brevi blocchi separati da \\n\\n per simulare messaggi sequenziali.
+- Non rivelare mai di essere un'AI o un LLM.
+- Non svelare soluzioni al test di selezione.
+${candidateName ? `- Il candidato si chiama ${candidateName}.` : ''}`;
+
+  try {
+    const openaiMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+      { role: 'system', content: systemPrompt },
+      ...(history as any[]).map((h: any) => ({
+        role: h.sender === 'candidate' ? 'user' as const : 'assistant' as const,
+        content: h.sender === 'candidate' ? `Candidato: ${h.content}` : h.content,
+      })),
+      { role: 'user', content: `Candidato: ${message}` },
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: openaiMessages,
+      max_tokens: 180,
+      temperature: 0.75,
+    });
+    res.json({ reply: completion.choices[0]?.message?.content?.trim() ?? '...' });
+  } catch (err: any) {
+    console.error('[workspace-chat]', err?.message);
+    res.status(500).json({ error: 'AI unavailable', reply: 'Scusa, ho avuto un problema tecnico. Riprova!' });
   }
 });
 
