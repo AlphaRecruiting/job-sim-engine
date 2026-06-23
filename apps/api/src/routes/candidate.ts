@@ -120,6 +120,12 @@ router.get('/sessions/:sessionToken/steps/:stepId', async (req, res) => {
   const stepIndex = (snapshot?.steps.findIndex(s => s.id === req.params.stepId) ?? 0) + 1;
   const totalSteps = snapshot?.steps.length ?? 1;
 
+  // Temporary debug: log CRM config to diagnose empty sections
+  if (step.type === 'crm_prioritization') {
+    const cfg = step.config as any;
+    console.log(`[DEBUG CRM] versionId=${session.simulationVersionId} records=${cfg?.records?.length ?? 0} firstRecord=${JSON.stringify(cfg?.records?.[0])?.slice(0, 300)}`);
+  }
+
   res.json({
     step: { id: step.id, orderIndex: step.orderIndex, type: step.type, title: step.title, instructions: step.instructions, timeLimitSeconds: step.timeLimitSeconds, isRequired: step.isRequired, publicConfig: mod.getPublicCandidateConfig(step.config) },
     stepIndex,
