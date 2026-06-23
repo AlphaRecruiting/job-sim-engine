@@ -60,25 +60,38 @@ function buildPrompt(type: string, title: string, instructions: string, jobTitle
 - Per le celle testuali (text/comment) il campo expectedValue NON deve essere incluso` :
     schemaKey === 'crm_prioritization_rich' ? `
 - Genera esattamente 5 lead inbound realistici e specifici per il ruolo (non generici)
-- Ogni lead DEVE sempre avere: id, displayName, company, hiddenPriorityScore, hiddenRationale, notes (array vuoto ok), visibleSignals (array vuoto ok)
-- I campi opzionali devono essere presenti solo a volte — distribuiscili in modo CASUALE tra i lead per simulare un CRM incompleto:
-  * contactRole: presente in ~3 lead su 5
-  * contactEmail: presente in ~2 lead su 5
-  * contactPhone: presente in ~1-2 lead su 5
-  * sector: presente in ~4 lead su 5
-  * employees: presente in ~3 lead su 5
-  * revenue: presente in ~2 lead su 5 (solo per i lead più qualificati)
-  * location: presente in ~3 lead su 5
-  * founded: presente in ~2 lead su 5
-  * website: presente in ~3 lead su 5
-  * source (type + icon emoji): presente in ~4 lead su 5
-  * signalStrength (alto/medio/basso): presente in ~4 lead su 5 — varia i valori
-  * avatarColor (CSS linear-gradient): sempre presente (serve per la UI)
-  * activities (2-4 oggetti con icon emoji, text, date): presente in ~4 lead su 5 — le activities devono essere realistiche (visite pricing, apertura email, demo request, referral, webinar ecc.)
-  * formNote (citazione diretta del lead, stringa breve): presente in ~3 lead su 5
-  * missingInfo (array di 2-3 string): presente in ~3 lead su 5 — indica cosa manca nel profilo
-- Se un campo opzionale non è presente, NON includerlo nel JSON (non mettere null o stringa vuota — omettilo del tutto)
-- expectedTopRecordIds deve contenere i 2-3 lead con hiddenPriorityScore più alto
+- Ogni lead DEVE sempre avere: id (r1–r5), displayName, company, hiddenPriorityScore (0–100), hiddenRationale, notes (array vuoto ok), visibleSignals (array vuoto ok)
+- avatarColor (CSS linear-gradient) DEVE sempre essere presente — usa colori diversi per ogni lead
+
+DISTRIBUZIONE CAMPI OPZIONALI (simula un CRM incompleto — varia tra i lead):
+  * contactRole: ~3 lead su 5
+  * contactEmail: ~2 lead su 5
+  * contactPhone: ~1 lead su 5
+  * sector: ~4 lead su 5
+  * employees: ~3 lead su 5
+  * revenue: ~2 lead su 5 (solo lead qualificati con employees > 50)
+  * location: ~3 lead su 5
+  * website: ~3 lead su 5
+  * source (type + icon emoji): ~4 lead su 5 — usa fonti DIVERSE tra i lead (non tutti dalla stessa fonte)
+  * signalStrength (alto/medio/basso): ~4 lead su 5
+  * activities (array di 2-4 oggetti con icon emoji, text, date): ~4 lead su 5
+  * formNote (citazione diretta del lead, prima persona, breve): ~2-3 lead su 5
+  * missingInfo (array 2-3 stringhe): ~3 lead su 5 — elenca solo campi REALMENTE assenti nel profilo
+- Se un campo opzionale non è presente, NON includerlo nel JSON (no null, no stringa vuota — ometti del tutto)
+
+REGOLE DI COERENZA OBBLIGATORIE:
+1. SOURCE → CONTATTO: Se source.type è "Inbound form" o "Demo request", il lead DEVE avere almeno uno tra contactEmail e contactPhone — ha compilato un modulo, ha lasciato un recapito
+2. SOURCE → ACTIVITIES: Le activities DEVONO riflettere la source: "Inbound form" → almeno un'activity di compilazione form; "Referral" → activity che cita il nome del referente; "LinkedIn Ad" → activity su click/visualizzazione LinkedIn; "Webinar" → activity di partecipazione al webinar; "Google Ads" → activity di ricerca o click annuncio
+3. SOURCE → formNote: formNote ha senso solo se source è "Inbound form", "Demo request" o "Referral" — chi arriva da LinkedIn Ad o Google Ads non lascia note
+4. SIGNALSTRENGTH → SCORE: devono essere allineati — alto = hiddenPriorityScore ≥ 70; medio = 40–69; basso = < 40. Non generare lead con signalStrength "alto" e score basso o viceversa
+5. MISSINGINFO → COERENZA: missingInfo deve elencare solo campi assenti nel JSON del lead stesso (es. se contactEmail c'è, non scrivere "Email non presente" in missingInfo)
+6. REFERRAL → QUALITÀ: I lead da Referral tendono ad avere hiddenPriorityScore alto (≥ 75) e formNote che cita chi li ha mandati
+7. COLD TRAFFIC → SEGNALI BASSI: Lead da Google Ads o LinkedIn Ad senza altre interazioni hanno tipicamente signalStrength "basso" o "medio" e hiddenPriorityScore < 50
+8. REVENUE → EMPLOYEES: revenue appare solo se employees è presente e ≥ 50; le dimensioni devono essere coerenti (es. "€500K ARR" non si abbina a "1000-5000 dipendenti")
+9. VARIETÀ: I 5 lead devono avere fonti, settori, livelli di priorità e profili di rischio diversi — non tutti da Inbound form, non tutti con score alto
+10. ACTIVITIES DATES: Le date nelle activities devono essere coerenti con lo scenario (es. se lo scenario è "lunedì mattina", le activities più recenti sono "Ieri sera", "Sabato", "Venerdì")
+
+- expectedTopRecordIds: i 2-3 lead con hiddenPriorityScore più alto
 - Aggiungi timeLimitSeconds: 900 e maxRankedItems: 3` :
     schemaKey === 'notification_reaction_slack' ? `
 - Genera un workspace Slack realistico per l'azienda "${candidateCompany}" con il ruolo "${jobTitle || 'Sales'}"
