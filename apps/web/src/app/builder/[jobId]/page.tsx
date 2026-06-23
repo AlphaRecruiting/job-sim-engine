@@ -338,6 +338,13 @@ export default function SimulationBuilderPage() {
     setStepErrors({});
     setPublishing(true); setMsg(null);
     try {
+      // Auto-save any steps with unsaved live config before snapshotting
+      const stepsWithLive = sortedSteps.filter(s => liveConfigsRef.current[s.id] !== undefined);
+      if (stepsWithLive.length > 0) {
+        await Promise.all(stepsWithLive.map(s =>
+          api.patch(`/api/simulations/${sim.id}/steps/${s.id}`, { config: liveConfigsRef.current[s.id] })
+        ));
+      }
       await api.post(`/api/simulations/${sim.id}/publish`);
       setPublished(true);
       setMsg({ tone: 'success', text: 'Simulazione pubblicata — i candidati vedranno questa versione.' });
