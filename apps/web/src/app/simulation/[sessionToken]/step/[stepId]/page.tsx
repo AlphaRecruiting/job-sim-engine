@@ -102,8 +102,11 @@ export default function StepPage() {
     <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
       <div className="px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          {logoUrl && (
-            <img src={logoUrl} alt={orgName ?? 'logo'} className="h-7 w-auto object-contain flex-shrink-0" />
+          {(logoUrl || orgName) && (
+            <div className="flex items-center gap-2 flex-shrink-0 border-r border-gray-100 pr-3 mr-1">
+              {logoUrl && <img src={logoUrl} alt={orgName ?? 'logo'} className="h-6 w-auto object-contain" />}
+              {orgName && <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{orgName}</span>}
+            </div>
           )}
           <div className="min-w-0">
             <h1 className="font-semibold text-gray-900 text-sm truncate">{step.title}</h1>
