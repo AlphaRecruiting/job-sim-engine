@@ -86,6 +86,21 @@ router.get('/organizations/current', requireAuth, async (req: AuthRequest, res) 
   res.json(org);
 });
 
+router.patch('/organizations/current', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { name, description, companyType, website, employeeCount, logoUrl } = req.body ?? {};
+    const data: Record<string, string | null> = {};
+    if (typeof name === 'string' && name.trim()) data.name = name.trim();
+    if (typeof description === 'string') data.description = description.trim() || null;
+    if (typeof companyType === 'string') data.companyType = companyType.trim() || null;
+    if (typeof website === 'string') data.website = website.trim() || null;
+    if (typeof employeeCount === 'string') data.employeeCount = employeeCount.trim() || null;
+    if (typeof logoUrl === 'string') data.logoUrl = logoUrl || null;
+    const org = await prisma.organization.update({ where: { id: req.organizationId }, data });
+    res.json(org);
+  } catch (err) { next(err); }
+});
+
 // Google OAuth — shared callback for company and candidate (type encoded in state)
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_OAUTH_CALLBACK_URL ?? '';
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
