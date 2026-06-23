@@ -338,7 +338,11 @@ export default function SimulationBuilderPage() {
       setPublished(true);
       setMsg({ tone: 'success', text: 'Simulazione pubblicata — i candidati vedranno questa versione.' });
     } catch (e: any) {
-      setMsg({ tone: 'danger', text: e.message });
+      const details: string[] = e.details ?? [];
+      const text = details.length
+        ? `${e.message} — ${details.join(' · ')}`
+        : e.message;
+      setMsg({ tone: 'danger', text });
     } finally { setPublishing(false); }
   }
 

@@ -10,7 +10,10 @@ export interface ValidationResult<T> {
 export function validate<T>(schema: z.ZodType<T, z.ZodTypeDef, any>, data: unknown): ValidationResult<T> {
   const result = schema.safeParse(data);
   if (result.success) return { success: true, data: result.data };
-  return { success: false, errors: result.error.errors.map(e => e.message) };
+  return { success: false, errors: result.error.errors.map(e => {
+    const path = e.path.join('.');
+    return path ? `${path}: ${e.message}` : e.message;
+  }) };
 }
 
 export interface SessionScoringContext {

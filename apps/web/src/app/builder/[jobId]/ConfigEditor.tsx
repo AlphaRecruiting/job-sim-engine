@@ -203,7 +203,29 @@ function WelcomeEditor({ config, onChange, errors = new Set<string>() }: { confi
             <div className="grid grid-cols-2 gap-3">
               <Field label="Nome" error={errors.has('persona') && !c.persona?.name?.trim()}><Inp value={c.persona?.name ?? ''} onChange={v => setPersona({ name: v })} placeholder="Marco Verdi" error={errors.has('persona') && !c.persona?.name?.trim()} /></Field>
               <Field label="Ruolo/Titolo"><Inp value={c.persona?.title ?? ''} onChange={v => setPersona({ title: v })} placeholder="CEO & Co-Founder" /></Field>
-              <Field label="Foto URL (opzionale)"><Inp value={c.persona?.photoUrl ?? ''} onChange={v => setPersona({ photoUrl: v })} placeholder="https://..." /></Field>
+              <Field label="Foto (opzionale)">
+                <div className="flex items-center gap-2">
+                  {c.persona?.photoUrl && (
+                    <img src={c.persona.photoUrl} alt="preview" className="w-9 h-9 rounded-full object-cover border border-ink-200 flex-shrink-0" />
+                  )}
+                  <label className="flex-1 flex items-center gap-2 cursor-pointer border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] text-ink-500 hover:border-ink-400 transition bg-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    {c.persona?.photoUrl ? 'Cambia foto' : 'Carica foto'}
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => setPersona({ photoUrl: ev.target?.result as string });
+                      reader.readAsDataURL(file);
+                    }} />
+                  </label>
+                  {c.persona?.photoUrl && (
+                    <button type="button" onClick={() => setPersona({ photoUrl: '' })} className="text-ink-300 hover:text-danger p-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  )}
+                </div>
+              </Field>
               <Field label="Voce TTS">
                 <select value={c.persona?.voice ?? 'ash'} onChange={e => setPersona({ voice: e.target.value })}
                   className="w-full border border-ink-200 rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand/20 bg-white transition">
