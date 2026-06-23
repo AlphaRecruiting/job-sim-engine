@@ -1073,6 +1073,8 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, sub
   const [notes, setNotes] = useState<Record<string, string>>(answer?.leadNotes ?? {});
   const [timeLeft, setTimeLeft] = useState(timerSecs);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
 
   // Auto-expand only the first section when a new lead is selected
   useEffect(() => {
@@ -1100,6 +1102,19 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, sub
       emitAnswer(next, explanation, notes);
       return next;
     });
+  }
+
+  function handleDropOnSlot(slotIndex: number) {
+    if (!draggingId) return;
+    setPriorityOrder(prev => {
+      const without = prev.filter(id => id !== draggingId);
+      without.splice(slotIndex, 0, draggingId!);
+      const trimmed = without.slice(0, maxItems);
+      emitAnswer(trimmed, explanation, notes);
+      return trimmed;
+    });
+    setDraggingId(null);
+    setDragOverSlot(null);
   }
 
   function toggleSection(key: string) {
@@ -1143,25 +1158,38 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, sub
 
       <div className="flex flex-1 min-h-0">
         {/* Left: Priority panel */}
-        <aside className="w-48 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50 overflow-hidden">
+        <aside className="w-56 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50 overflow-hidden">
           <div className="px-3 py-3 border-b border-gray-200">
             <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Priorità Inbound</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">{priorityOrder.length} / {maxItems} selezionati</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">Trascina i lead qui · {priorityOrder.length}/{maxItems}</p>
           </div>
           <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
             {Array.from({ length: maxItems }).map((_, i) => {
               const lead = records.find(r => r.id === priorityOrder[i]);
+              const isOver = dragOverSlot === i;
               return (
-                <div key={i} className={`rounded-lg border px-2 py-1.5 ${lead ? 'border-blue-200 bg-blue-50' : 'border-dashed border-gray-200 bg-white'}`}>
+                <div
+                  key={i}
+                  onDragOver={e => { e.preventDefault(); setDragOverSlot(i); }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverSlot(null); }}
+                  onDrop={e => { e.preventDefault(); handleDropOnSlot(i); }}
+                  className={`rounded-lg border px-2 py-1.5 transition-colors ${
+                    isOver ? 'border-blue-400 bg-blue-100' :
+                    lead ? 'border-blue-200 bg-blue-50' :
+                    'border-dashed border-gray-200 bg-white'
+                  }`}
+                >
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-[10px] font-bold ${lead ? 'text-blue-600' : 'text-gray-300'}`}>#{i + 1}</span>
+                    <span className={`text-[10px] font-bold flex-shrink-0 ${lead ? 'text-blue-600' : isOver ? 'text-blue-400' : 'text-gray-300'}`}>#{i + 1}</span>
                     {lead ? (
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-semibold text-gray-800 truncate">{lead.company}</p>
                         <p className="text-[10px] text-gray-500 truncate">{lead.displayName}</p>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-gray-300">Slot libero</span>
+                      <span className={`text-[10px] ${isOver ? 'text-blue-500 font-semibold' : 'text-gray-300'}`}>
+                        {isOver ? 'Rilascia qui' : 'Slot libero'}
+                      </span>
                     )}
                     {lead && (
                       <button onClick={() => togglePriority(lead.id)} className="text-gray-300 hover:text-red-400 transition flex-shrink-0">
@@ -1195,9 +1223,19 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, sub
               const initials = r.displayName?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() ?? '??';
               const rank = priorityOrder.indexOf(r.id);
               const isSelected = r.id === selectedId;
+              const isDragging = draggingId === r.id;
               return (
-                <button key={r.id} onClick={() => setSelectedId(r.id)}
-                  className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-gray-100 transition ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'}`}>
+                <div
+                  key={r.id}
+                  draggable
+                  onDragStart={e => { e.dataTransfer.setData('text/plain', r.id); setDraggingId(r.id); }}
+                  onDragEnd={() => { setDraggingId(null); setDragOverSlot(null); }}
+                  onClick={() => setSelectedId(r.id)}
+                  className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-gray-100 transition cursor-grab active:cursor-grabbing select-none ${
+                    isDragging ? 'opacity-40' :
+                    isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'
+                  }`}
+                >
                   <div className="relative flex-shrink-0">
                     <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: r.avatarColor ?? 'linear-gradient(135deg,#6366f1,#7c3aed)' }}>{initials}</div>
                     {rank >= 0 && <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center">{rank + 1}</div>}
@@ -1216,14 +1254,14 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, sub
                       {r.signalStrength}
                     </span>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
         </main>
 
         {/* Right: Lead detail */}
-        <aside className="w-72 flex-shrink-0 flex flex-col overflow-y-auto border-l border-gray-200">
+        <aside className="w-84 flex-shrink-0 flex flex-col overflow-y-auto border-l border-gray-200" style={{ width: '22rem' }}>
           {!selectedRecord ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-2 text-gray-300 p-6">
               <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -1248,12 +1286,13 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, sub
                   {selectedRecord.contactEmail && <span className="text-[10px] text-gray-500">📧 {selectedRecord.contactEmail}</span>}
                   {selectedRecord.contactPhone && <span className="text-[10px] text-gray-500">📞 {selectedRecord.contactPhone}</span>}
                 </div>
-                <div className="mt-2">
-                  <button onClick={() => togglePriority(selectedRecord.id)}
-                    className={`text-[11px] font-semibold px-3 py-1 rounded-lg transition ${priorityOrder.includes(selectedRecord.id) ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
-                    {priorityOrder.includes(selectedRecord.id) ? `✓ #${priorityOrder.indexOf(selectedRecord.id) + 1} in lista` : '+ Aggiungi priorità'}
-                  </button>
-                </div>
+                {priorityOrder.includes(selectedRecord.id) && (
+                  <div className="mt-2">
+                    <span className="text-[11px] font-semibold px-3 py-1 rounded-lg bg-blue-500 text-white">
+                      ✓ #{priorityOrder.indexOf(selectedRecord.id) + 1} in lista priorità
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Collapsible sections */}
