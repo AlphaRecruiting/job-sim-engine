@@ -114,8 +114,11 @@ router.get('/sessions/:sessionToken/steps/:stepId', async (req, res) => {
   if (!step) { res.status(404).json({ error: 'Step not found' }); return; }
 
   const mod = getModule(step.type);
-  const existingSubmission = await prisma.stepSubmission.findFirst({ where: { sessionId: session.id, stepId: step.id } });
-  const autosave = await prisma.simulationEvent.findFirst({ where: { sessionId: session.id, stepId: step.id, eventType: 'autosave' }, orderBy: { createdAt: 'desc' } });
+  const [existingSubmission, autosave, org] = await Promise.all([
+    prisma.stepSubmission.findFirst({ where: { sessionId: session.id, stepId: step.id } }),
+    prisma.simulationEvent.findFirst({ where: { sessionId: session.id, stepId: step.id, eventType: 'autosave' }, orderBy: { createdAt: 'desc' } }),
+    prisma.organization.findUnique({ where: { id: session.organizationId }, select: { logoUrl: true, name: true } }),
+  ]);
 
   const stepIndex = (snapshot?.steps.findIndex(s => s.id === req.params.stepId) ?? 0) + 1;
   const totalSteps = snapshot?.steps.length ?? 1;
@@ -126,6 +129,7 @@ router.get('/sessions/:sessionToken/steps/:stepId', async (req, res) => {
     totalSteps,
     submission: existingSubmission ? { status: existingSubmission.status, submittedAt: existingSubmission.submittedAt } : null,
     autosavedAnswer: (autosave?.payload as any)?.answer ?? null,
+    organization: { logoUrl: org?.logoUrl ?? null, name: org?.name ?? null },
   });
 });
 

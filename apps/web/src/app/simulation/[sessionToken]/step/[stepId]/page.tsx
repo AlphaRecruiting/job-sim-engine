@@ -9,6 +9,7 @@ type StepData = {
   totalSteps: number;
   submission?: { status: string } | null;
   autosavedAnswer?: any;
+  organization?: { logoUrl: string | null; name: string | null };
 };
 
 export default function StepPage() {
@@ -92,15 +93,22 @@ export default function StepPage() {
   const { step, stepIndex, totalSteps } = data;
   const alreadySubmitted = data.submission?.status === 'submitted';
   const progress = totalSteps > 0 ? (stepIndex / totalSteps) * 100 : 0;
+  const logoUrl = data.organization?.logoUrl ?? null;
+  const orgName = data.organization?.name ?? null;
 
   const isCrm = step.type === 'crm_prioritization';
 
   const header = (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
       <div className="px-6 py-3 flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-semibold text-gray-900 text-sm truncate">{step.title}</h1>
-          <p className="text-xs text-gray-400 capitalize">{step.type.replace(/_/g, ' ')}</p>
+        <div className="flex items-center gap-3 min-w-0">
+          {logoUrl && (
+            <img src={logoUrl} alt={orgName ?? 'logo'} className="h-7 w-auto object-contain flex-shrink-0" />
+          )}
+          <div className="min-w-0">
+            <h1 className="font-semibold text-gray-900 text-sm truncate">{step.title}</h1>
+            <p className="text-xs text-gray-400 capitalize">{step.type.replace(/_/g, ' ')}</p>
+          </div>
         </div>
         <div className="flex-shrink-0 text-right">
           <span className="text-sm font-bold text-gray-700">{stepIndex}</span>
@@ -1249,11 +1257,6 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, sub
                       <p className="text-[10px] text-gray-400 truncate mt-0.5">{r.activities[0].icon} {r.activities[0].text}</p>
                     )}
                   </div>
-                  {r.signalStrength && (
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${r.signalStrength === 'alto' ? 'bg-green-100 text-green-700' : r.signalStrength === 'medio' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {r.signalStrength}
-                    </span>
-                  )}
                 </div>
               );
             })}
