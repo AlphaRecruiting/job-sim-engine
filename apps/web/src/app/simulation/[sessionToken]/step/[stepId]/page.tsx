@@ -22,6 +22,7 @@ export default function StepPage() {
   // timeLeft is kept for internal auto-submit only — not displayed
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const welcomeSubmitDone = useRef(false);
 
   useEffect(() => {
     api.get<StepData>(`/api/candidate/sessions/${sessionToken}/steps/${stepId}`)
@@ -64,6 +65,22 @@ export default function StepPage() {
     } catch (e: any) { setError(e.message); } finally { setSubmitting(false); }
   }
 
+  // Auto-submit for welcome step — fires when enough time has passed (classic) or all slides done (TTS)
+  useEffect(() => {
+    if (!data || data.step.type !== 'welcome' || welcomeSubmitDone.current || submitting) return;
+    const cfg = data.step.publicConfig;
+    const minRead = cfg?.minReadSeconds ?? 15;
+    const isSlides = !!(cfg?.slides?.length);
+    const slidesTotal: number = cfg?.slides?.length ?? 0;
+    const ready = isSlides
+      ? (answer?.slidesCompleted ?? 0) >= slidesTotal && slidesTotal > 0
+      : answer?.acknowledged && (answer?.timeSpentSeconds ?? 0) >= minRead;
+    if (ready) {
+      welcomeSubmitDone.current = true;
+      handleSubmit();
+    }
+  }, [answer]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const trackEvent = useCallback((eventType: string, payload?: unknown) => {
     api.post(`/api/candidate/sessions/${sessionToken}/steps/${stepId}/events`, { eventType, payload }).catch(() => {});
   }, [sessionToken, stepId]);
@@ -76,42 +93,66 @@ export default function StepPage() {
   const alreadySubmitted = data.submission?.status === 'submitted';
   const progress = totalSteps > 0 ? (stepIndex / totalSteps) * 100 : 0;
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header with progress */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-6 py-3 flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="font-semibold text-gray-900 text-sm truncate">{step.title}</h1>
-            <p className="text-xs text-gray-400 capitalize">{step.type.replace(/_/g, ' ')}</p>
-          </div>
-          {/* Step counter */}
-          <div className="flex-shrink-0 text-right">
-            <span className="text-sm font-bold text-gray-700">{stepIndex}</span>
-            <span className="text-sm text-gray-400">/{totalSteps}</span>
-          </div>
+  const isCrm = step.type === 'crm_prioritization';
+
+  const header = (
+    <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="px-6 py-3 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-semibold text-gray-900 text-sm truncate">{step.title}</h1>
+          <p className="text-xs text-gray-400 capitalize">{step.type.replace(/_/g, ' ')}</p>
         </div>
-        {/* Progress bar */}
-        <div className="h-1 bg-gray-100">
-          <div
-            className="h-1 bg-blue-500 transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        {/* Step dots */}
-        <div className="px-6 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <div
-              key={i}
-              className={`flex-shrink-0 rounded-full transition-all duration-300 ${
-                i < stepIndex - 1 ? 'w-2 h-2 bg-blue-500' :
-                i === stepIndex - 1 ? 'w-3 h-3 bg-blue-600 ring-2 ring-blue-200' :
-                'w-2 h-2 bg-gray-200'
-              }`}
-            />
-          ))}
+        <div className="flex-shrink-0 text-right">
+          <span className="text-sm font-bold text-gray-700">{stepIndex}</span>
+          <span className="text-sm text-gray-400">/{totalSteps}</span>
         </div>
       </div>
+      <div className="h-1 bg-gray-100">
+        <div className="h-1 bg-blue-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="px-6 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+        {Array.from({ length: totalSteps }).map((_, i) => (
+          <div key={i} className={`flex-shrink-0 rounded-full transition-all duration-300 ${
+            i < stepIndex - 1 ? 'w-2 h-2 bg-blue-500' :
+            i === stepIndex - 1 ? 'w-3 h-3 bg-blue-600 ring-2 ring-blue-200' :
+            'w-2 h-2 bg-gray-200'
+          }`} />
+        ))}
+      </div>
+    </div>
+  );
+
+  if (isCrm) {
+    return (
+      <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+        {header}
+        {alreadySubmitted ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+              <p className="font-semibold text-green-700">Step completato</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0">
+            {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 mx-4 mt-3 rounded-xl px-4 py-2">{error}</p>}
+            <StepRenderer
+              type={step.type}
+              config={step.publicConfig}
+              answer={answer}
+              onAnswerChange={setAnswer}
+              onTrackEvent={trackEvent}
+              onSubmit={handleSubmit}
+              submitting={submitting}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {header}
 
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
@@ -128,22 +169,29 @@ export default function StepPage() {
 
             {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-2">{error}</p>}
 
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-gray-400">Step {stepIndex} di {totalSteps}</span>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || (!answer && step.type !== 'welcome')}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-40 transition flex items-center gap-2 text-sm"
-              >
-                {submitting ? (
-                  <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Invio...</>
-                ) : step.type === 'welcome' ? (
-                  <>Continua <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></>
-                ) : (
-                  <>Avanti {stepIndex < totalSteps ? `(${stepIndex + 1}/${totalSteps})` : '— Completa'} <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></>
-                )}
-              </button>
-            </div>
+            {step.type === 'welcome' ? (
+              submitting && (
+                <div className="flex items-center justify-center gap-2 py-3 text-sm text-gray-400">
+                  <span className="w-4 h-4 border-2 border-gray-200 border-t-gray-500 rounded-full animate-spin" />
+                  Avanzamento...
+                </div>
+              )
+            ) : (
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-xs text-gray-400">Step {stepIndex} di {totalSteps}</span>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting || !answer}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-40 transition flex items-center gap-2 text-sm"
+                >
+                  {submitting ? (
+                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Invio...</>
+                  ) : (
+                    <>Avanti {stepIndex < totalSteps ? `(${stepIndex + 1}/${totalSteps})` : '— Completa'} <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></>
+                  )}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -153,12 +201,12 @@ export default function StepPage() {
 
 // --- Step renderers ---
 
-function StepRenderer({ type, config, answer, onAnswerChange, onTrackEvent }: { type: string; config: any; answer: any; onAnswerChange: (a: any) => void; onTrackEvent: (e: string, p?: any) => void }) {
+function StepRenderer({ type, config, answer, onAnswerChange, onTrackEvent, onSubmit, submitting }: { type: string; config: any; answer: any; onAnswerChange: (a: any) => void; onTrackEvent: (e: string, p?: any) => void; onSubmit?: () => void; submitting?: boolean }) {
   switch (type) {
     case 'multiple_choice': return <MultipleChoiceRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'free_text': return <FreeTextRenderer config={config} answer={answer} onChange={onAnswerChange} />;
     case 'email_response': return <EmailResponseRenderer config={config} answer={answer} onChange={onAnswerChange} />;
-    case 'crm_prioritization': return <RichCrmRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} />;
+    case 'crm_prioritization': return <RichCrmRenderer config={config} answer={answer} onChange={onAnswerChange} onTrackEvent={onTrackEvent} onSubmit={onSubmit} submitting={submitting} />;
     case 'notification_reaction': return config.workspace
       ? <SlackWorkspaceRenderer config={config} answer={answer} onChange={onAnswerChange} />
       : <NotificationReactionRenderer config={config} answer={answer} onChange={onAnswerChange} />;
@@ -719,8 +767,8 @@ function TtsSlidesRenderer({ config, answer, onChange }: any) {
 
     if (idx + 1 < slides.length) {
       setCurrent(idx + 1);
-      // Preload next+1
       fetchAudio(idx + 2).catch(() => {});
+      playSlide(idx + 1);
     }
   }
 
@@ -735,7 +783,6 @@ function TtsSlidesRenderer({ config, answer, onChange }: any) {
 
   const slide = slides[current];
   const initials = persona.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() ?? 'P';
-  const isLast = current === slides.length - 1 && !playing;
 
   if (!started) {
     return (
@@ -794,17 +841,8 @@ function TtsSlidesRenderer({ config, answer, onChange }: any) {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-center">
         <span className="text-xs text-gray-400">{current + 1} / {slides.length}</span>
-        {isLast ? (
-          <span className="text-xs text-green-600 font-semibold">✓ Presentazione completata</span>
-        ) : !playing ? (
-          <button onClick={() => playSlide(current)} className="text-sm text-indigo-600 font-semibold hover:underline">
-            Avanti →
-          </button>
-        ) : (
-          <span className="text-xs text-gray-400 animate-pulse">In riproduzione...</span>
-        )}
       </div>
     </div>
   );
@@ -1021,10 +1059,11 @@ function SlackWorkspaceRenderer({ config, answer, onChange }: any) {
   );
 }
 
-// ─── Rich CRM Renderer (3-column) ─────────────────────────────────────────────
-function RichCrmRenderer({ config, answer, onChange, onTrackEvent }: any) {
+// ─── Rich CRM Renderer (3-column fullscreen) ──────────────────────────────────
+function RichCrmRenderer({ config, answer, onChange, onTrackEvent, onSubmit, submitting }: any) {
   const records: any[] = config.records ?? [];
-  const maxItems: number = config.maxRankedItems ?? records.length;
+  // Always allow ranking all leads
+  const maxItems: number = records.length;
   const timerSecs: number = config.timeLimitSeconds ?? 900;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1063,22 +1102,37 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent }: any) {
   const timerWarning = timeLeft <= 300 && !timerDanger;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ minHeight: '600px' }}>
+    <div className="flex-1 flex flex-col bg-white overflow-hidden min-h-0">
       {/* Topbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-gray-50">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <span className="font-semibold text-gray-900">Pipeline</span>
           <span>›</span><span className="text-gray-700">Inbound</span>
         </div>
-        <div className={`flex items-center gap-1.5 text-sm font-mono font-semibold px-3 py-1 rounded-lg ${timerDanger ? 'bg-red-100 text-red-600' : timerWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          {timerM}:{String(timerS).padStart(2, '0')}
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-1.5 text-sm font-mono font-semibold px-3 py-1 rounded-lg ${timerDanger ? 'bg-red-100 text-red-600' : timerWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            {timerM}:{String(timerS).padStart(2, '0')}
+          </div>
+          {onSubmit && (
+            <button
+              onClick={onSubmit}
+              disabled={submitting || priorityOrder.length === 0}
+              className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 transition"
+            >
+              {submitting ? (
+                <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Invio...</>
+              ) : (
+                <>Conferma priorità <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex" style={{ minHeight: '555px' }}>
+      <div className="flex flex-1 min-h-0">
         {/* Left: Priority panel */}
-        <aside className="w-48 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
+        <aside className="w-48 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50 overflow-hidden">
           <div className="px-3 py-3 border-b border-gray-200">
             <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Priorità Inbound</p>
             <p className="text-[10px] text-gray-400 mt-0.5">{priorityOrder.length} / {maxItems} selezionati</p>
@@ -1120,7 +1174,7 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent }: any) {
         </aside>
 
         {/* Center: Lead list */}
-        <main className="flex-1 flex flex-col min-w-0 border-r border-gray-200">
+        <main className="flex-1 flex flex-col min-w-0 border-r border-gray-200 overflow-hidden">
           <div className="px-4 py-2.5 border-b border-gray-100">
             <h2 className="text-sm font-bold text-gray-900">Lead Inbound</h2>
             <p className="text-[11px] text-gray-400">{records.length} lead</p>
@@ -1154,7 +1208,7 @@ function RichCrmRenderer({ config, answer, onChange, onTrackEvent }: any) {
         </main>
 
         {/* Right: Lead detail */}
-        <aside className="w-72 flex-shrink-0 flex flex-col overflow-y-auto">
+        <aside className="w-72 flex-shrink-0 flex flex-col overflow-y-auto border-l border-gray-200">
           {!selectedRecord ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-2 text-gray-300 p-6">
               <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
