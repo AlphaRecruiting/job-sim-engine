@@ -25,6 +25,18 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
+// Request timing logger — logs any request that takes >500ms
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    if (ms > 500) {
+      console.log(`[SLOW] ${req.method} ${req.path} → ${res.statusCode} (${ms}ms)`);
+    }
+  });
+  next();
+});
+
 app.get('/health', (_, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
 app.use('/api', authRouter);
