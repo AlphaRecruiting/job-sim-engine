@@ -2,9 +2,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Briefcase, Users, Zap, AlertTriangle } from 'lucide-react';
+import { Plus, Briefcase, Users, Zap, AlertTriangle, ChevronRight, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Button, Badge, Card, Avatar, Stat } from '@/components/ui';
+import { Badge } from '@/components/ui';
 
 type Job = {
   id: string;
@@ -20,10 +20,10 @@ type Job = {
 };
 
 const STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'neutral' | 'danger' | 'brand' }> = {
-  published: { label: 'Pubblicata',  tone: 'success'  },
-  draft:     { label: 'Bozza',       tone: 'warning'  },
-  closed:    { label: 'Chiusa',      tone: 'neutral'  },
-  archived:  { label: 'Archiviata', tone: 'danger'   },
+  published: { label: 'Pubblicata', tone: 'success'  },
+  draft:     { label: 'Bozza',      tone: 'warning'  },
+  closed:    { label: 'Chiusa',     tone: 'neutral'  },
+  archived:  { label: 'Archiviata',tone: 'danger'   },
 };
 
 const REMOTE: Record<string, string> = {
@@ -40,6 +40,15 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}m fa`;
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <span className="text-[12px] font-semibold text-ink-400 uppercase tracking-widest whitespace-nowrap">{children}</span>
+      <div className="h-px flex-1 bg-ink-100" />
+    </div>
+  );
+}
+
 export default function AdminJobsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -53,126 +62,167 @@ export default function AdminJobsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const published  = jobs.filter(j => j.status === 'published').length;
-  const drafts     = jobs.filter(j => j.status === 'draft').length;
-  const withSim    = jobs.filter(j => j.activeSimulationVersionId).length;
-  const missingSim = jobs.filter(j => !j.activeSimulationVersionId && j.status !== 'archived').length;
+  const activeJobs   = jobs.filter(j => j.status !== 'archived' && j.status !== 'closed');
+  const missingSim   = jobs.filter(j => !j.activeSimulationVersionId && j.status !== 'archived');
+  const published    = jobs.filter(j => j.status === 'published');
+  const drafts       = jobs.filter(j => j.status === 'draft');
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[28px]">Offerte di lavoro</h1>
-          <p className="text-[15px] text-ink-500 mt-1">Gestisci le posizioni aperte e le simulazioni collegate.</p>
+    <div className="max-w-3xl mx-auto py-10 px-2">
+
+      {/* ── Hero ── */}
+      <div className="text-center mb-10">
+        <div className="w-14 h-14 rounded-2xl bg-brand flex items-center justify-center mx-auto mb-5">
+          <Briefcase size={26} className="text-white" />
         </div>
-        <Link href="/admin/jobs/new">
-          <Button iconLeft={<Plus size={16} />}>Nuova offerta</Button>
-        </Link>
+        <h1 className="text-[26px] font-bold text-ink-950 font-display leading-tight">
+          Le tue offerte di lavoro
+        </h1>
+        <p className="text-[14px] text-ink-400 mt-1.5">
+          {loading ? '…' : jobs.length === 0
+            ? 'Nessuna offerta ancora — creane una per iniziare.'
+            : `${published.length} pubblicate · ${drafts.length} in bozza · ${jobs.length} totali`}
+        </p>
+        <div className="mt-5">
+          <Link
+            href="/admin/jobs/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand text-white text-[13px] font-semibold hover:bg-brand/90 transition-colors"
+          >
+            <Plus size={15} />
+            Nuova offerta
+          </Link>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        <Card padding="md"><Stat value={String(jobs.length)} label="Totali" /></Card>
-        <Card padding="md"><Stat value={String(published)} label="Pubblicate" /></Card>
-        <Card padding="md"><Stat value={String(drafts)} label="Bozze" /></Card>
-        <Card padding="md"><Stat value={String(withSim)} label="Con simulazione" /></Card>
-      </div>
-
-      {/* Missing simulation banner */}
-      {missingSim > 0 && (
-        <div className="flex items-center gap-3 bg-warning-subtle border border-warning/20 rounded-xl px-4 py-3 mb-5 text-[13px]">
-          <AlertTriangle size={15} className="text-warning shrink-0" />
-          <span className="text-warning-dark font-medium">
-            {missingSim} {missingSim === 1 ? 'offerta non ha' : 'offerte non hanno'} ancora una simulazione — aggiungila per ricevere candidature qualificate.
-          </span>
+      {/* ── Action items ── */}
+      {!loading && missingSim.length > 0 && (
+        <div className="mb-8">
+          <SectionLabel>Azioni richieste</SectionLabel>
+          <div className="flex flex-col gap-2">
+            {missingSim.map(job => (
+              <button
+                key={job.id}
+                type="button"
+                onClick={() => router.push(`/admin/jobs/${job.id}`)}
+                className="w-full flex items-center gap-4 bg-white border border-ink-200 rounded-xl px-4 py-3.5 hover:bg-ink-50 transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-lg bg-warning-subtle flex items-center justify-center shrink-0">
+                  <AlertTriangle size={16} className="text-warning" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-ink-900 truncate">{job.title}</div>
+                  <div className="text-[12px] text-ink-400 mt-0.5">Nessuna simulazione collegata</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge tone={STATUS[job.status]?.tone ?? 'neutral'} dot>{STATUS[job.status]?.label ?? job.status}</Badge>
+                  <ChevronRight size={14} className="text-ink-300" />
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Job list */}
+      {/* ── Job grid ── */}
       {loading ? (
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-xl border border-ink-200 p-5 animate-pulse h-20" />
-          ))}
+        <div>
+          <SectionLabel>Offerte</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-2xl border border-ink-200 p-5 h-28 animate-pulse" />
+            ))}
+          </div>
         </div>
       ) : error ? (
-        <Card padding="lg">
-          <p className="text-danger text-[14px]">{error}</p>
-        </Card>
+        <p className="text-[13px] text-danger text-center">{error}</p>
       ) : jobs.length === 0 ? (
-        <Card padding="lg">
-          <div className="text-center py-10">
-            <div className="w-12 h-12 rounded-full bg-ink-100 flex items-center justify-center mx-auto mb-4">
-              <Briefcase size={22} className="text-ink-400" />
-            </div>
-            <p className="text-ink-500 font-semibold mb-1">Nessuna offerta ancora</p>
-            <p className="text-ink-400 text-[14px] mb-5">Crea la tua prima posizione con simulazione.</p>
-            <Link href="/admin/jobs/new">
-              <Button iconLeft={<Plus size={15} />}>Crea offerta</Button>
-            </Link>
-          </div>
-        </Card>
+        <div className="text-center py-16 text-ink-400">
+          <FileText size={36} className="mx-auto mb-3 text-ink-200" />
+          <p className="text-[14px] font-medium">Nessuna offerta ancora</p>
+          <p className="text-[13px] mt-1">Crea la prima posizione con simulazione.</p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {jobs.map(job => {
-            const s = STATUS[job.status] ?? { label: job.status, tone: 'neutral' as const };
-            const subtitle = [
-              job.department,
-              job.location,
-              job.remotePolicy ? REMOTE[job.remotePolicy] : undefined,
-            ].filter(Boolean).join(' · ');
-            const hasSim = !!job.activeSimulationVersionId;
+        <div>
+          {activeJobs.length > 0 && (
+            <>
+              <SectionLabel>Offerte attive</SectionLabel>
+              <div className="grid grid-cols-2 gap-3 mb-8">
+                {activeJobs.map(job => {
+                  const s = STATUS[job.status] ?? { label: job.status, tone: 'neutral' as const };
+                  const hasSim = !!job.activeSimulationVersionId;
+                  const subtitle = [
+                    job.department,
+                    job.location,
+                    job.remotePolicy ? REMOTE[job.remotePolicy] : undefined,
+                  ].filter(Boolean).join(' · ');
 
-            return (
-              <Card
-                key={job.id}
-                padding="md"
-                interactive
-                onClick={() => router.push(`/admin/jobs/${job.id}`)}
-              >
-                <div className="flex items-center gap-4">
-                  <Avatar name={job.title} square size="lg" />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[16px] font-bold text-ink-950 font-display leading-snug">
-                      {job.title}
-                    </div>
-                    <div className="text-[13px] text-ink-500 mt-0.5">
-                      {subtitle || '—'}{' · '}{timeAgo(job.updatedAt)}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {hasSim ? (
-                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-brand-subtle rounded-md">
-                        <Zap size={12} className="text-blue-600" />
-                        <span className="text-[12px] text-blue-700 font-semibold">Simulazione</span>
-                      </div>
-                    ) : (
-                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-warning-subtle rounded-md">
-                        <AlertTriangle size={12} className="text-warning" />
-                        <span className="text-[12px] text-warning-dark font-semibold">Senza simulazione</span>
-                      </div>
-                    )}
-                    <Badge tone={s.tone} dot>{s.label}</Badge>
-                  </div>
-
-                  {/* Candidati link — stopPropagation so card click doesn't fire */}
-                  <div className="flex items-center gap-1 ml-2">
-                    <Link
-                      href={`/admin/jobs/${job.id}/candidates`}
-                      onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-semibold text-ink-600 hover:bg-ink-100 rounded-lg transition-colors"
+                  return (
+                    <button
+                      key={job.id}
+                      type="button"
+                      onClick={() => router.push(`/admin/jobs/${job.id}`)}
+                      className="group flex flex-col bg-white border border-ink-200 rounded-2xl p-5 text-left hover:border-ink-300 hover:shadow-sm transition-all"
                     >
-                      <Users size={14} />
-                      <span className="hidden sm:inline">Candidati</span>
-                    </Link>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${hasSim ? 'bg-brand-subtle' : 'bg-ink-100'}`}>
+                          {hasSim
+                            ? <Zap size={16} className="text-blue-600" />
+                            : <Briefcase size={16} className="text-ink-400" />}
+                        </div>
+                        <Badge tone={s.tone} dot>{s.label}</Badge>
+                      </div>
+                      <div className="text-[14px] font-bold text-ink-950 font-display leading-snug mb-1">{job.title}</div>
+                      <div className="text-[12px] text-ink-400 flex-1">
+                        {subtitle || <span className="italic text-ink-300">Nessuna sede</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-[11px] text-ink-300">{timeAgo(job.updatedAt)}</span>
+                        <Link
+                          href={`/admin/jobs/${job.id}/candidates`}
+                          onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-ink-500 hover:text-brand transition-colors"
+                        >
+                          <Users size={11} />
+                          Candidati
+                        </Link>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Closed / Archived */}
+          {jobs.filter(j => j.status === 'closed' || j.status === 'archived').length > 0 && (
+            <>
+              <SectionLabel>Archiviate / Chiuse</SectionLabel>
+              <div className="grid grid-cols-2 gap-3">
+                {jobs.filter(j => j.status === 'closed' || j.status === 'archived').map(job => {
+                  const s = STATUS[job.status] ?? { label: job.status, tone: 'neutral' as const };
+                  const subtitle = [job.department, job.location].filter(Boolean).join(' · ');
+
+                  return (
+                    <button
+                      key={job.id}
+                      type="button"
+                      onClick={() => router.push(`/admin/jobs/${job.id}`)}
+                      className="flex flex-col bg-white border border-ink-200 rounded-2xl p-5 text-left opacity-60 hover:opacity-100 hover:border-ink-300 transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-9 h-9 rounded-lg bg-ink-100 flex items-center justify-center shrink-0">
+                          <Briefcase size={16} className="text-ink-300" />
+                        </div>
+                        <Badge tone={s.tone} dot>{s.label}</Badge>
+                      </div>
+                      <div className="text-[14px] font-bold text-ink-950 font-display leading-snug mb-1">{job.title}</div>
+                      <div className="text-[12px] text-ink-400">{subtitle || <span className="italic text-ink-300">—</span>}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
