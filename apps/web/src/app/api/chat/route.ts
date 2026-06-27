@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { guard } from '@/lib/api-guard';
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
+
+// Bound per-request cost: cap the candidate message and the history we forward.
+const MAX_MESSAGE_LEN = 1000;
+const MAX_HISTORY = 20;
+const MAX_HISTORY_ITEM_LEN = 1000;
 
 // ── Colleague personalities and strict guardrails ──
 const CHARACTERS: Record<
@@ -72,13 +78,19 @@ const CHARACTERS: Record<
 };
 
 export async function POST(req: NextRequest) {
+  const blocked = guard(req, { bucket: 'chat', maxPerMinute: 30 });
+  if (blocked) return blocked;
+
   const { channel, message, history, characterKey } = await req.json();
 
-  if (!message || !characterKey) {
+  if (!message || typeof message !== 'string' || !characterKey) {
     return NextResponse.json(
       { error: 'message and characterKey required' },
       { status: 400 }
     );
+  }
+  if (message.length > MAX_MESSAGE_LEN) {
+    return NextResponse.json({ error: `message too long (max ${MAX_MESSAGE_LEN})` }, { status: 413 });
   }
 
   const char = CHARACTERS[characterKey];
@@ -86,9 +98,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'character not found' }, { status: 400 });
   }
 
+  // Only forward a bounded, sanitized slice of history to OpenAI.
+  const safeChannel = typeof channel === 'string' ? channel.slice(0, 40) : 'general';
+  const safeHistory = (Array.isArray(history) ? history : [])
+    .slice(-MAX_HISTORY)
+    .filter((h: any) => h && typeof h.content === 'string')
+    .map((h: any) => ({
+      sender: typeof h.sender === 'string' ? h.sender : '',
+      senderName: typeof h.senderName === 'string' ? h.senderName.slice(0, 60) : '',
+      content: h.content.slice(0, MAX_HISTORY_ITEM_LEN),
+    }));
+
   try {
     const systemPrompt = `Sei ${char.name}, ruolo: ${char.role} in Pillar.
-Contesto della chat di Slack: Canale #${channel}.
+Contesto della chat di Slack: Canale #${safeChannel}.
 Personalità: ${char.personality}
 
 REGOLE COMPORTAMENTALI FERREE:
@@ -109,8 +132,8 @@ REGOLE GENERALI DI SICUREZZA E STILE:
       { role: 'system', content: systemPrompt },
     ];
 
-    if (history && Array.isArray(history)) {
-      history.forEach((h: any) => {
+    if (safeHistory.length > 0) {
+      safeHistory.forEach((h: any) => {
         if (h.sender === 'user') {
           openaiMessages.push({ role: 'user', content: `Candidato: ${h.content}` });
         } else if (h.sender === characterKey) {
