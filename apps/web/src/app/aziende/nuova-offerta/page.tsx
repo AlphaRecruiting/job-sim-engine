@@ -6,7 +6,7 @@ import TopNav from '@/components/TopNav';
 import Footer from '@/components/Footer';
 import { Button, Badge, Card, Alert } from '@/components/ui';
 
-const SIM_URL = process.env.NEXT_PUBLIC_SIM_URL ?? 'http://localhost:3001';
+const SIM_PREVIEW_URL = '/sim/index.html?preview=true';
 
 const STEPS = [
   { id: 0, label: 'Dettagli offerta' },
@@ -135,7 +135,7 @@ function StepSimulation({ data, set }: { data: FormData; set: (k: 'tasks', v: Ta
           variant="ghost"
           size="sm"
           iconLeft={<Play size={14} />}
-          onClick={() => window.open(`${SIM_URL}?preview=true`, '_blank')}
+          onClick={() => window.open(SIM_PREVIEW_URL, '_blank')}
         >
           Prova anteprima
         </Button>
@@ -212,7 +212,7 @@ function StepReview({ data }: { data: FormData }) {
           <Button
             block
             iconLeft={<Play size={15} />}
-            onClick={() => window.open(`${SIM_URL}?preview=true`, '_blank')}
+            onClick={() => window.open(SIM_PREVIEW_URL, '_blank')}
           >
             Prova la simulazione
           </Button>

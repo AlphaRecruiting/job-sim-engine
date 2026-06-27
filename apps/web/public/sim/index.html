@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alpha × Pillar — SDR Intern Simulation</title>
+  <meta name="description" content="Simulazione interattiva per il ruolo di SDR Intern presso Pillar." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="crm.css" />
+</head>
+<body>
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- PHASE 0 — BOOT SCREEN                          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section id="phase-boot" class="phase active">
+    <!-- Floating gradient orbs -->
+    <div class="boot-orbs">
+      <div class="boot-orb orb-1"></div>
+      <div class="boot-orb orb-2"></div>
+      <div class="boot-orb orb-3"></div>
+    </div>
+
+    <div class="boot-container">
+
+      <!-- Logos -->
+      <div class="boot-logo-group">
+        <div class="boot-logo pillar-logo">
+          <img class="boot-logo-icon pillar-icon-img" src="pillar-icon-only.png" alt="Pillar Icon">
+          <img class="boot-logo-wordmark pillar-text-img" src="pillar-text-only.png" alt="Pillar">
+        </div>
+
+        <div class="boot-x-wrapper">
+          <span class="boot-x">×</span>
+        </div>
+
+        <div class="boot-logo alpha-logo">
+          <div class="alpha-icon-box">
+            <img class="boot-logo-icon alpha-icon-img" src="alpha-icon-only.png" alt="Alpha Icon">
+          </div>
+          <span class="boot-logo-text alpha-text">Alpha</span>
+        </div>
+      </div>
+
+      <!-- Hero title with gradient -->
+      <div class="boot-hero-block">
+        <h1 class="boot-hero-title">SDR INTERN<br>SIMULATION</h1>
+        <p class="boot-hero-tagline">La tua prima giornata come Sales Development Representative inizia ora.</p>
+      </div>
+
+      <!-- Info chips -->
+      <div class="boot-info-chips">
+        <div class="boot-chip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ~45 minuti
+        </div>
+        <div class="boot-chip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          8 fasi
+        </div>
+      </div>
+
+      <!-- CTA — visible immediately -->
+      <button class="btn-start-sim visible" id="btn-start-sim">
+        <span class="btn-start-inner">
+          Inizia la simulazione
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </span>
+      </button>
+    </div>
+
+    <!-- Candidate info overlay -->
+    <div class="candidate-overlay" id="candidate-overlay">
+      <div class="boot-orbs">
+        <div class="boot-orb orb-1"></div>
+        <div class="boot-orb orb-2"></div>
+        <div class="boot-orb orb-3"></div>
+      </div>
+      <div class="candidate-form-container">
+        <!-- Same logos as boot -->
+        <div class="boot-logo-group" style="animation:none;opacity:1">
+          <div class="boot-logo">
+            <img src="pillar-icon-only.png" alt="Pillar" style="height:30px;">
+            <span style="font-size:20px;font-weight:700;letter-spacing:-.03em">Pillar</span>
+          </div>
+          <span class="boot-x">×</span>
+          <div class="boot-logo">
+            <div class="alpha-icon-box">
+              <img class="boot-logo-icon alpha-icon-img" src="alpha-icon-only.png" alt="Alpha Icon">
+            </div>
+            <span style="font-size:20px;font-weight:700;letter-spacing:-.03em">Alpha</span>
+          </div>
+        </div>
+
+        <h3 class="candidate-form-title">Inserisci i tuoi dati</h3>
+        <p class="candidate-form-sub">per personalizzare la simulazione</p>
+
+        <form id="candidate-form" autocomplete="off">
+          <div class="form-row">
+            <div class="form-field">
+              <label for="cand-name">Nome</label>
+              <input type="text" id="cand-name" placeholder="Mario" required>
+            </div>
+            <div class="form-field">
+              <label for="cand-surname">Cognome</label>
+              <input type="text" id="cand-surname" placeholder="Rossi" required>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="cand-email">Email</label>
+            <input type="email" id="cand-email" placeholder="mario.rossi@email.com" required>
+          </div>
+          <button type="submit" class="btn-candidate-submit">
+            <span class="btn-start-inner">
+              Avvia simulazione
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- PHASE 1 — FOUNDER PRESENTATION                 -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section id="phase-founder" class="phase">
+    <div class="founder-container">
+      <!-- Floating gradient orbs (same as boot) -->
+      <div class="boot-orbs">
+        <div class="boot-orb orb-1"></div>
+        <div class="boot-orb orb-2"></div>
+        <div class="boot-orb orb-3"></div>
+      </div>
+      <nav class="sim-nav sim-nav-minimal">
+        <div class="sim-nav-left">
+          <img class="sim-nav-logo-img" src="pillar-icon-only.png" alt="Pillar Logo">
+          <span class="sim-nav-brand">Pillar</span>
+        </div>
+        <div class="sim-nav-right">
+          <div class="sim-nav-phase-badge">
+            <span class="phase-dot"></span>
+            Fase 1 di 8
+          </div>
+        </div>
+      </nav>
+
+      <!-- Founder video card -->
+      <div class="founder-stage">
+        <div class="founder-video-card" id="founder-card">
+          <div class="founder-avatar-wrapper">
+            <img src="founder.png" alt="Gabriel Guinea Montalvo, Founder di Pillar" class="founder-avatar" />
+            <div class="founder-audio-wave" id="audio-wave">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="founder-info">
+            <span class="founder-name">Gabriel Guinea Montalvo</span>
+            <span class="founder-title">Co-Founder & CEO</span>
+          </div>
+          <div class="founder-timer" id="founder-timer">
+            <svg class="timer-ring" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="16" fill="none" stroke="#e4e4e7" stroke-width="2.5"/>
+              <circle id="timer-circle" cx="18" cy="18" r="16" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="100.53" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 18 18)"/>
+            </svg>
+            <span class="timer-text" id="timer-text">0:35</span>
+          </div>
+        </div>
+
+        <!-- Captions area -->
+        <div class="founder-captions-area">
+          <div class="founder-caption" id="founder-caption"></div>
+        </div>
+
+        <!-- Progress dots -->
+        <div class="founder-slide-dots" id="slide-dots"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- PHASE 2 — WORKSPACE (Slack-inspired)            -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section id="phase-slack" class="phase">
+    <div class="ws-container">
+
+      <!-- ── Sidebar ── -->
+      <aside class="ws-sidebar">
+        <div class="ws-sidebar-header">
+          <div class="ws-workspace-icon">
+            <img src="pillar-icon-only.png" alt="Pillar" class="ws-workspace-logo-img">
+          </div>
+          <div class="ws-workspace-info">
+            <span class="ws-workspace-name">Pillar</span>
+            <span class="ws-workspace-status">
+              <span class="ws-status-dot"></span>
+              Online
+            </span>
+          </div>
+        </div>
+
+        <div class="ws-sidebar-section">
+          <span class="ws-sidebar-label">Canali</span>
+          <ul class="ws-channel-list" id="ws-channel-list">
+            <li class="ws-channel ws-channel-active" data-channel="welcome">
+              <span class="ws-channel-hash">#</span>
+              <span class="ws-channel-name">welcome</span>
+              <span class="ws-unread-badge" id="badge-welcome" style="display:none">0</span>
+            </li>
+            <li class="ws-channel" data-channel="general">
+              <span class="ws-channel-hash">#</span>
+              <span class="ws-channel-name">general</span>
+              <span class="ws-unread-badge" id="badge-general" style="display:none">0</span>
+            </li>
+            <li class="ws-channel" data-channel="sales">
+              <span class="ws-channel-hash">#</span>
+              <span class="ws-channel-name">sales</span>
+              <span class="ws-unread-badge" id="badge-sales" style="display:none">0</span>
+            </li>
+            <li class="ws-channel" data-channel="inbound">
+              <span class="ws-channel-hash">#</span>
+              <span class="ws-channel-name">inbound</span>
+              <span class="ws-unread-badge" id="badge-inbound" style="display:none">0</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="ws-sidebar-section">
+          <span class="ws-sidebar-label">Messaggi diretti</span>
+          <ul class="ws-channel-list">
+            <li class="ws-channel ws-dm-item">
+              <div class="ws-dm-avatar-wrapper">
+                <span class="ws-dm-avatar" style="background:linear-gradient(135deg,#6366f1,#7c3aed)">MC</span>
+                <span class="ws-dm-status-dot"></span>
+              </div>
+              <span class="ws-channel-name">Marco Conti</span>
+            </li>
+            <li class="ws-channel ws-dm-item">
+              <div class="ws-dm-avatar-wrapper">
+                <span class="ws-dm-avatar" style="background:linear-gradient(135deg,#7c3aed,#9333ea)">GG</span>
+                <span class="ws-dm-status-dot"></span>
+              </div>
+              <span class="ws-channel-name">Gabriel G.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Sidebar user footer -->
+        <div class="ws-sidebar-footer" id="ws-sidebar-footer">
+          <span class="ws-user-avatar" id="ws-user-avatar">?</span>
+          <span class="ws-user-name" id="ws-user-name">Tu</span>
+          <span class="ws-user-status-dot"></span>
+        </div>
+      </aside>
+
+      <!-- ── Chat area ── -->
+      <main class="ws-main">
+        <div class="ws-chat-header" id="ws-chat-header">
+          <div class="ws-chat-channel-info">
+            <span class="ws-chat-hash">#</span>
+            <span class="ws-chat-channel-name" id="ws-chat-channel-name">welcome</span>
+          </div>
+          <div class="ws-chat-header-right">
+            <span class="ws-chat-topic" id="ws-chat-topic">Benvenuto nel team Pillar</span>
+          </div>
+        </div>
+
+        <div class="ws-messages-scroll" id="ws-messages-scroll">
+          <div class="ws-messages" id="ws-messages">
+            <div class="ws-day-divider">
+              <span>Oggi</span>
+            </div>
+            <!-- Messages injected by JS -->
+          </div>
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="ws-typing-bar" id="ws-typing-bar" style="display:none">
+          <div class="ws-typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span class="ws-typing-text" id="ws-typing-text">Marco sta scrivendo…</span>
+        </div>
+
+        <!-- Input area -->
+        <div class="ws-input-area">
+          <div class="ws-input-wrapper">
+            <button class="ws-attach-btn" aria-label="Allega">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <input type="text" class="ws-input" placeholder="Scrivi un messaggio in #welcome…" id="ws-input" disabled />
+            <button class="ws-send-btn" aria-label="Invia" id="ws-send" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </main>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- PHASE 3 — CRM (Pipeline Inbound)               -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section id="phase-crm" class="phase">
+    <!-- Topbar -->
+    <div class="crm-topbar">
+      <div class="crm-topbar-left">
+        <img src="pillar-icon-only.png" alt="Pillar" class="crm-topbar-logo">
+        <span class="crm-topbar-brand">Pillar</span>
+        <div class="crm-breadcrumb">
+          <span>Pipeline</span>
+          <span class="crm-breadcrumb-sep">›</span>
+          <span class="crm-breadcrumb-active">Inbound</span>
+        </div>
+      </div>
+      <div class="crm-topbar-center"></div>
+      <div class="crm-topbar-right">
+        <div class="crm-timer" id="crm-timer">
+          <svg class="crm-timer-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span class="crm-timer-text" id="crm-timer-text">15:00</span>
+        </div>
+        <span class="crm-user-avatar" id="crm-user-avatar">?</span>
+      </div>
+    </div>
+
+    <!-- Body: 3-column layout -->
+    <div class="crm-body">
+      <!-- Left Sidebar: Prioritization -->
+      <aside class="crm-sidebar" id="crm-priority-bar">
+        <div class="crm-sidebar-priority-header">
+          <div class="crm-sidebar-priority-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span>Priorità Inbound</span>
+          </div>
+          <span class="crm-priority-count" id="crm-priority-count">0 / 5</span>
+        </div>
+        <div class="crm-sidebar-priority-hint">Aggiungi i lead e ordinali per priorità</div>
+        <div class="crm-priority-slots" id="crm-priority-slots">
+          <!-- Slots injected by crm.js -->
+        </div>
+        <div class="crm-sidebar-priority-actions">
+          <button class="crm-priority-confirm" id="crm-priority-confirm" disabled>
+            Conferma priorità
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Center: Lead List -->
+      <main class="crm-main">
+        <div class="crm-main-header">
+          <div class="crm-main-header-left">
+            <h2 class="crm-main-title">Lead Inbound</h2>
+            <span class="crm-main-subtitle">Pipeline attiva · 5 lead</span>
+          </div>
+          <div class="crm-main-header-right"></div>
+        </div>
+        <div class="crm-lead-list" id="crm-lead-list">
+          <!-- Lead cards injected by crm.js -->
+        </div>
+      </main>
+
+      <!-- Right: Lead Detail -->
+      <aside class="crm-detail" id="crm-detail">
+        <div class="crm-detail-empty" id="crm-detail-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <p>Seleziona un lead dalla lista<br>per visualizzare i dettagli</p>
+        </div>
+        <div class="crm-detail-content" id="crm-detail-content" style="display:none">
+          <!-- Injected by crm.js -->
+        </div>
+      </aside>
+    </div>
+
+    <!-- Backdrop (click outside to close sheet) -->
+    <div class="crm-sheet-backdrop" id="crm-sheet-backdrop"></div>
+
+    <!-- Bottom sheet — explanation step -->
+    <div class="crm-priority-sheet" id="crm-priority-sheet">
+      <div class="crm-sheet-handle-bar" id="crm-sheet-handle-bar">
+        <div class="crm-sheet-handle"></div>
+      </div>
+      <div class="crm-sheet-header">
+        <div class="crm-sheet-title">Spiega le tue scelte</div>
+        <button class="crm-sheet-close-btn" id="crm-sheet-close-btn" aria-label="Chiudi">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="crm-sheet-body">
+        <textarea class="crm-priority-motivation" id="crm-priority-motivation" placeholder="Quali criteri hai usato per ordinare i lead? Parla di budget, urgenza, fit di prodotto, segnali di intent…"></textarea>
+        <button class="crm-priority-submit-final" id="crm-priority-submit-final" disabled>
+          Invia e prosegui
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- PHASE 4 — HANDOVER (DM con Account Executive)  -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section id="phase-handover" class="phase">
+    <div class="ws-container">
+
+      <!-- Sidebar -->
+      <aside class="ws-sidebar">
+        <div class="ws-sidebar-header">
+          <div class="ws-workspace-icon">
+            <img src="pillar-icon-only.png" alt="Pillar" class="ws-workspace-logo-img">
+          </div>
+          <div class="ws-workspace-info">
+            <span class="ws-workspace-name">Pillar</span>
+            <span class="ws-workspace-status">
+              <span class="ws-status-dot"></span>
+              Online
+            </span>
+          </div>
+        </div>
+
+        <div class="ws-sidebar-section">
+          <span class="ws-sidebar-label">Messaggi diretti</span>
+          <ul class="ws-channel-list">
+            <li class="ws-channel ws-dm-item ws-channel-active">
+              <div class="ws-dm-avatar-wrapper">
+                <span class="ws-dm-avatar" style="background:linear-gradient(135deg,#ec4899,#db2777)">SR</span>
+                <span class="ws-dm-status-dot"></span>
+              </div>
+              <span class="ws-channel-name">Sara Ricci</span>
+            </li>
+            <li class="ws-channel ws-dm-item">
+              <div class="ws-dm-avatar-wrapper">
+                <span class="ws-dm-avatar" style="background:linear-gradient(135deg,#6366f1,#7c3aed)">MC</span>
+                <span class="ws-dm-status-dot"></span>
+              </div>
+              <span class="ws-channel-name">Marco Conti</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="ws-sidebar-footer">
+          <span class="ws-user-avatar" id="handover-user-avatar">?</span>
+          <span class="ws-user-name" id="handover-user-name">Tu</span>
+          <span class="ws-user-status-dot"></span>
+        </div>
+      </aside>
+
+      <!-- Main chat -->
+      <main class="ws-main">
+        <div class="ws-chat-header">
+          <div class="ws-chat-channel-info handover-dm-header-info">
+            <span class="ws-dm-avatar handover-dm-header-avatar" style="background:linear-gradient(135deg,#ec4899,#db2777)">SR</span>
+            <div>
+              <span class="ws-chat-channel-name">Sara Ricci</span>
+              <span class="handover-dm-header-role">Account Executive</span>
+            </div>
+          </div>
+          <div class="ws-chat-header-right">
+            <span class="ws-chat-topic">Handover · Fase 4 di 8</span>
+          </div>
+        </div>
+
+        <!-- Context banner -->
+        <div class="handover-context-banner">
+          <span class="handover-context-icon">📞</span>
+          <span id="handover-context-text">Hai appena concluso la chiamata. Ora fai l'handover con Sara.</span>
+        </div>
+
+        <!-- Messages scroll area -->
+        <div class="ws-messages-scroll" id="handover-scroll">
+          <div class="ws-messages" id="handover-messages">
+            <div class="ws-day-divider"><span>Oggi</span></div>
+          </div>
+        </div>
+
+        <!-- Typing bar -->
+        <div class="ws-typing-bar" id="handover-typing-bar" style="display:none">
+          <div class="ws-typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span class="ws-typing-text" id="handover-typing-text">Sara sta scrivendo…</span>
+        </div>
+
+        <!-- Completion banner -->
+        <div class="handover-complete-banner" id="handover-complete-banner">
+          <div class="handover-complete-inner">
+            <span>✅</span>
+            <div class="handover-complete-text">
+              <strong>Handover completato</strong>
+              <span>Sara ha ricevuto il briefing e si occuperà di prenotare la demo. Ottimo lavoro!</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div class="ws-input-area">
+          <div class="ws-input-wrapper">
+            <button class="ws-attach-btn" aria-label="Allega">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <input type="text" class="ws-input" id="handover-input" placeholder="Scrivi l'handover per Sara…" disabled />
+            <button class="ws-send-btn" aria-label="Invia" id="handover-send" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- ANALYTICS OVERLAY (hidden, tracks engagement)   -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div id="analytics-overlay" class="analytics-overlay hidden">
+    <div class="analytics-card">
+      <h3>📊 Alpha — Dati raccolti (Fase 1)</h3>
+      <div class="analytics-grid" id="analytics-grid">
+        <!-- Filled by JS -->
+      </div>
+      <button class="btn-close-analytics" id="btn-close-analytics">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- Preview mode badge — shown via JS when ?preview=true -->
+  <div class="preview-badge" id="preview-badge">
+    <div class="preview-badge-dot"></div>
+    <span>Anteprima aziendale</span>
+    <button class="preview-restart-btn" onclick="location.reload()">Ricomincia</button>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="crm.js"></script>
+  <script src="handover.js"></script>
+</body>
+</html>
