@@ -130,7 +130,7 @@ async function replyFromSara(lead, candidateText, appendMsg, showTyping) {
   let replyText = '';
 
   try {
-    const res = await fetch('/api/chat', {
+    const res = await (window.simFetch || fetch)('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

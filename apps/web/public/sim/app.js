@@ -43,6 +43,41 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
 // ── TTS audio cache ──
 const audioCache = [];
 
+// ── Signed session token for the protected API routes (/api/tts, /api/chat) ──
+let __simToken = null;
+async function fetchSimToken() {
+  try {
+    const r = await fetch('/api/sim/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    if (r.ok) {
+      const d = await r.json();
+      __simToken = d.token;
+    }
+  } catch (e) {
+    console.error('Failed to obtain sim session token:', e);
+  }
+}
+// Wraps fetch, attaching the session token and refreshing it once on 401.
+async function simFetch(path, opts = {}) {
+  if (!__simToken) await fetchSimToken();
+  const withToken = () => ({
+    ...opts,
+    headers: { ...(opts.headers || {}), 'x-sim-token': __simToken || '' },
+  });
+  let res = await fetch(path, withToken());
+  if (res.status === 401) {
+    await fetchSimToken();
+    res = await fetch(path, withToken());
+  }
+  return res;
+}
+window.simFetch = simFetch;
+// Kick off token acquisition immediately so it's ready before the first call.
+fetchSimToken();
+
 // ── Phase management ──
 function showPhase(id) {
   document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
@@ -86,7 +121,7 @@ const founderSlides = [
 // ══════════════════════════════════════════
 async function fetchTTS(text) {
   try {
-    const res = await fetch('/api/tts', {
+    const res = await simFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, voice: 'ash' }),
@@ -879,7 +914,7 @@ async function triggerAutoReply(channel, userText) {
 
   let replyText = "";
   try {
-    const response = await fetch('/api/chat', {
+    const response = await simFetch('/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

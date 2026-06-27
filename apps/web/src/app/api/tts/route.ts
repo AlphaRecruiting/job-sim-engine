@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { guard } from '@/lib/api-guard';
+import { guard, requireSession } from '@/lib/api-guard';
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
@@ -20,6 +20,8 @@ Regole vocali:
 export async function POST(req: NextRequest) {
   const blocked = guard(req, { bucket: 'tts', maxPerMinute: 40 });
   if (blocked) return blocked;
+  const noSession = requireSession(req, 'tts');
+  if (noSession) return noSession;
 
   const { text, voice = 'ash' } = await req.json();
   if (!text || typeof text !== 'string') {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { guard } from '@/lib/api-guard';
+import { guard, requireSession } from '@/lib/api-guard';
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
@@ -80,6 +80,8 @@ const CHARACTERS: Record<
 export async function POST(req: NextRequest) {
   const blocked = guard(req, { bucket: 'chat', maxPerMinute: 30 });
   if (blocked) return blocked;
+  const noSession = requireSession(req, 'chat');
+  if (noSession) return noSession;
 
   const { channel, message, history, characterKey } = await req.json();
 
