@@ -8,3 +8,4 @@ export { Stat } from './Stat';
 export { Tabs } from './Tabs';
 export { Input } from './Input';
 export { Alert } from './Alert';
+export { CityAutocomplete } from './CityAutocomplete';
