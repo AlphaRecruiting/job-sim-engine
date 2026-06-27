@@ -240,7 +240,7 @@ function WelcomeEditor({ config, onChange, errors = new Set<string>() }: { confi
 
           <Section title="Slide con audio" error={errors.has('slides')}>
             <p className="text-[12px] text-ink-500 -mt-1 mb-3">
-              Ogni slide genera un audio TTS dal testo. L'HTML (opzionale) sostituisce il testo nella visualizzazione — utile per grassetto, link, elenchi.
+              Ogni slide genera un audio TTS dal testo inserito.
             </p>
             <div className="flex flex-col gap-3">
               {(c.slides ?? []).map((sl: any, i: number) => (
@@ -251,9 +251,6 @@ function WelcomeEditor({ config, onChange, errors = new Set<string>() }: { confi
                   </div>
                   <Field label="Testo (per TTS e visualizzazione)">
                     <Textarea value={sl.text ?? ''} rows={2} onChange={v => set({ slides: c.slides.map((x: any, j: number) => j === i ? { ...x, text: v } : x) })} placeholder="Ciao! Sono Marco, CEO di Acme. Sono felice di presentarti questa opportunità..." />
-                  </Field>
-                  <Field label="HTML (opzionale — sovrascrive il testo nella visualizzazione)">
-                    <Inp value={sl.html ?? ''} onChange={v => set({ slides: c.slides.map((x: any, j: number) => j === i ? { ...x, html: v || undefined } : x) })} placeholder="<b>Ciao!</b> Sono Marco..." />
                   </Field>
                 </div>
               ))}
