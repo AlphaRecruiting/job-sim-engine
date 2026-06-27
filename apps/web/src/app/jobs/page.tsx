@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, MapPin, Zap, ArrowRight, Bookmark, X, SlidersHorizontal } from 'lucide-react';
@@ -103,6 +103,20 @@ function JobCard({ job }: { job: Job }) {
     job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : undefined,
   ].filter(Boolean) as string[];
 
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    const { isJobSaved } = require('@/lib/savedJobs');
+    setSaved(isJobSaved(job.id));
+  }, [job.id]);
+
+  function handleBookmark(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const { toggleSavedJob } = require('@/lib/savedJobs');
+    const next = toggleSavedJob({ id: job.id, title: job.title, organization: job.organization, location: job.location, remotePolicy: job.remotePolicy, department: job.department, employmentType: job.employmentType, activeSimulationVersionId: job.activeSimulationVersionId });
+    setSaved(next);
+  }
+
   return (
     <Link href={`/jobs/${job.id}`} className="block group">
       <Card padding="md" interactive>
@@ -120,10 +134,11 @@ function JobCard({ job }: { job: Job }) {
           </div>
           <button
             type="button"
-            className="text-ink-300 hover:text-ink-500 transition-colors flex-none mt-0.5"
-            onClick={e => e.preventDefault()}
+            onClick={handleBookmark}
+            title={saved ? 'Rimuovi dai salvati' : 'Salva offerta'}
+            className={`transition-colors flex-none mt-0.5 ${saved ? 'text-brand' : 'text-ink-300 hover:text-ink-500'}`}
           >
-            <Bookmark size={17} />
+            <Bookmark size={17} fill={saved ? 'currentColor' : 'none'} />
           </button>
         </div>
 
