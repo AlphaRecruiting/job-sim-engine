@@ -294,7 +294,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-ink-200 mb-6 overflow-x-auto">
+        <div className="flex gap-1 border-b border-ink-200 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]">
           {TABS.map(t => (
             <button
               key={t.id}
